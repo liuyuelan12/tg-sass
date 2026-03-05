@@ -69,18 +69,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const email = credentials?.email as string;
         const password = credentials?.password as string;
-        if (!email || !password) return null;
+        if (!email || !password) {
+          console.log("[password-auth] missing email or password");
+          return null;
+        }
 
         const normalizedEmail = email.toLowerCase().trim();
         const user = await prisma.user.findUnique({
           where: { email: normalizedEmail },
         });
-        if (!user || !user.passwordHash) return null;
-        if (user.isDisabled) return null;
+        if (!user) {
+          console.log("[password-auth] user not found:", normalizedEmail);
+          return null;
+        }
+        if (!user.passwordHash) {
+          console.log("[password-auth] no password set for:", normalizedEmail);
+          return null;
+        }
+        if (user.isDisabled) {
+          console.log("[password-auth] user disabled:", normalizedEmail);
+          return null;
+        }
 
         const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) return null;
+        if (!valid) {
+          console.log("[password-auth] invalid password for:", normalizedEmail);
+          return null;
+        }
 
+        console.log("[password-auth] success:", normalizedEmail);
         return {
           id: user.id,
           email: user.email,

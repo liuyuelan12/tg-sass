@@ -60,12 +60,16 @@ function LoginForm() {
         password,
         redirect: false,
       });
+      console.log("signIn result:", JSON.stringify(result));
       if (result?.error) {
-        setError("Invalid email or password");
-      } else {
+        setError("Invalid email or password. If you registered with OTP and haven't set a password, please use OTP login.");
+      } else if (result?.ok) {
         router.push("/session-gen");
+      } else {
+        setError("Login failed - unexpected response");
       }
-    } catch {
+    } catch (err) {
+      console.error("signIn error:", err);
       setError("Login failed");
     } finally {
       setLoading(false);
