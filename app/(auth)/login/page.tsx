@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,6 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const isAdmin = searchParams.get("admin") === "true";
 
@@ -34,16 +33,11 @@ function LoginForm() {
     setLoading(true);
     setError("");
     try {
-      const result = await signIn("admin", {
+      await signIn("admin", {
         email,
         password,
-        redirect: false,
+        redirectTo: "/admin/dashboard",
       });
-      if (result?.error) {
-        setError("Invalid credentials");
-      } else {
-        router.push("/admin/dashboard");
-      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("CredentialsSignin")) {
@@ -51,7 +45,6 @@ function LoginForm() {
       } else {
         setError("Login failed");
       }
-    } finally {
       setLoading(false);
     }
   }
@@ -60,28 +53,18 @@ function LoginForm() {
     setLoading(true);
     setError("");
     try {
-      const result = await signIn("password", {
+      await signIn("password", {
         email,
         password,
-        redirect: false,
+        redirectTo: "/session-gen",
       });
-      console.log("signIn result:", JSON.stringify(result));
-      if (result?.error) {
-        setError("Invalid email or password. If you registered with OTP and haven't set a password, please use OTP login.");
-      } else if (result?.ok) {
-        router.push("/session-gen");
-      } else {
-        setError("Login failed - unexpected response");
-      }
     } catch (err: unknown) {
-      console.error("signIn error:", err);
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("CredentialsSignin")) {
-        setError("Invalid email or password");
+        setError("Invalid email or password. If you registered with OTP and haven't set a password, please use OTP login.");
       } else {
         setError("Login failed");
       }
-    } finally {
       setLoading(false);
     }
   }
@@ -122,29 +105,18 @@ function LoginForm() {
     setLoading(true);
     setError("");
     try {
-      const result = await signIn("otp", {
+      await signIn("otp", {
         email: email.toLowerCase().trim(),
         code,
-        redirect: false,
+        redirectTo: "/session-gen",
       });
-      console.log("OTP signIn result:", JSON.stringify(result));
-      if (result?.error) {
-        setError("Invalid or expired code");
-      } else if (result?.ok) {
-        router.push("/session-gen");
-      } else {
-        // NextAuth v5: signIn may not return error but also not ok
-        router.push("/session-gen");
-      }
     } catch (err: unknown) {
-      console.error("OTP signIn catch:", err);
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("CredentialsSignin")) {
         setError("Invalid or expired code");
       } else {
         setError("Verification failed");
       }
-    } finally {
       setLoading(false);
     }
   }

@@ -42,24 +42,31 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
     try {
-      const result = await signIn("otp", {
-        email: email.toLowerCase().trim(),
-        code,
-        redirect: false,
+      // Verify OTP via API first (don't use signIn yet)
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase().trim(), code }),
       });
-      if (result?.error) {
-        setError("Invalid or expired code");
-      } else {
-        // OTP verified, now set password
-        setStep("password");
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Invalid or expired code");
+        return;
       }
+      // OTP verified, now sign in and go to password step
+      try {
+        await signIn("otp", {
+          email: email.toLowerCase().trim(),
+          code,
+          redirect: false,
+        });
+      } catch {
+        // signIn may throw in v5 even on success, ignore
+      }
+      setStep("password");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("CredentialsSignin")) {
-        setError("Invalid or expired code");
-      } else {
-        setError("Verification failed");
-      }
+      setError(msg || "Verification failed");
     } finally {
       setLoading(false);
     }
