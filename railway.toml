@@ -1,7 +1,4 @@
-[build]
-builder = "nixpacks"
-
 [deploy]
-startCommand = "npx prisma migrate deploy && npx tsx prisma/seed.ts && npx tsx server.ts"
 healthcheckPath = "/api/health"
+healthcheckTimeout = 300
 restartPolicyType = "on_failure"
