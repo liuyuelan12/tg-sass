@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  STOPPED
+}
+
+model User {
+  id             String      @id @default(cuid())
+  email          String      @unique
+  passwordHash   String?
+  role           Role        @default(USER)
+  trialExpiresAt DateTime?
+  isPaid         Boolean     @default(false)
+  isDisabled     Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  tgSessions     TgSession[]
+  scrapeJobs     ScrapeJob[]
+  chatJobs       ChatJob[]
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, code])
+}
+
+model TgSession {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label         String
+  phone         String?
+  sessionString String   @db.Text
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+model ScrapeJob {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupEntity   String
+  topicId       Int?
+  status        JobStatus @default(PENDING)
+  csvR2Key      String?
+  mediaR2Prefix String?
+  messageCount  Int       @default(0)
+  progress      Int       @default(0)
+  error         String?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model ChatJob {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupEntity   String
+  topicId       Int?
+  csvR2Key      String?
+  mediaR2Prefix String?
+  sessionIds    String[]
+  intervalMin   Int       @default(3)
+  intervalMax   Int       @default(5)
+  sendPct       Int       @default(70)
+  replyPct      Int       @default(20)
+  reactPct      Int       @default(10)
+  shouldLoop    Boolean   @default(true)
+  status        JobStatus @default(PENDING)
+  sentCount     Int       @default(0)
+  error         String?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+}
