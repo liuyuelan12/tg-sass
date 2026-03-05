@@ -168,7 +168,7 @@ export class ScrapeRunner {
                 addOffset: 0,
                 maxId: 0,
                 minId: 0,
-                hash: BigInt(0),
+                hash: BigInt(0) as unknown as import("big-integer").BigInteger,
               })
             );
             return "messages" in result ? result.messages : [];
