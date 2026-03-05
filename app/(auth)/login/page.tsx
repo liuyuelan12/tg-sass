@@ -44,8 +44,13 @@ function LoginForm() {
       } else {
         router.push("/admin/dashboard");
       }
-    } catch {
-      setError("Login failed");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("CredentialsSignin")) {
+        setError("Invalid credentials");
+      } else {
+        setError("Login failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -68,9 +73,14 @@ function LoginForm() {
       } else {
         setError("Login failed - unexpected response");
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("signIn error:", err);
-      setError("Login failed");
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("CredentialsSignin")) {
+        setError("Invalid email or password");
+      } else {
+        setError("Login failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -100,17 +110,27 @@ function LoginForm() {
     setError("");
     try {
       const result = await signIn("otp", {
-        email,
+        email: email.toLowerCase().trim(),
         code,
         redirect: false,
       });
+      console.log("OTP signIn result:", JSON.stringify(result));
       if (result?.error) {
         setError("Invalid or expired code");
+      } else if (result?.ok) {
+        router.push("/session-gen");
       } else {
+        // NextAuth v5: signIn may not return error but also not ok
         router.push("/session-gen");
       }
-    } catch {
-      setError("Verification failed");
+    } catch (err: unknown) {
+      console.error("OTP signIn catch:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("CredentialsSignin")) {
+        setError("Invalid or expired code");
+      } else {
+        setError("Verification failed");
+      }
     } finally {
       setLoading(false);
     }

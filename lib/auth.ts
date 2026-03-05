@@ -13,9 +13,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         code: { label: "OTP Code", type: "text" },
       },
       async authorize(credentials) {
-        const email = credentials?.email as string;
+        const email = (credentials?.email as string)?.toLowerCase().trim();
         const code = credentials?.code as string;
-        if (!email || !code) return null;
+        if (!email || !code) {
+          console.log("[otp-auth] missing email or code");
+          return null;
+        }
+
+        console.log("[otp-auth] verifying:", email, "code:", code);
 
         const otpRecord = await prisma.otpCode.findFirst({
           where: {
@@ -27,7 +32,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           orderBy: { createdAt: "desc" },
         });
 
-        if (!otpRecord) return null;
+        if (!otpRecord) {
+          console.log("[otp-auth] no valid OTP found for:", email);
+          return null;
+        }
 
         await prisma.otpCode.update({
           where: { id: otpRecord.id },

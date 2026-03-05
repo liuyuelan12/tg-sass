@@ -43,7 +43,7 @@ export default function RegisterPage() {
     setError("");
     try {
       const result = await signIn("otp", {
-        email,
+        email: email.toLowerCase().trim(),
         code,
         redirect: false,
       });
@@ -53,8 +53,13 @@ export default function RegisterPage() {
         // OTP verified, now set password
         setStep("password");
       }
-    } catch {
-      setError("Verification failed");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("CredentialsSignin")) {
+        setError("Invalid or expired code");
+      } else {
+        setError("Verification failed");
+      }
     } finally {
       setLoading(false);
     }
