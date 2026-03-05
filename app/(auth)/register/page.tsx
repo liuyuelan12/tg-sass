@@ -1,16 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { getCsrfToken } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
+async function credentialsSignIn(
+  provider: string,
+  credentials: Record<string, string>
+): Promise<{ ok: boolean }> {
+  const csrfToken = await getCsrfToken();
+  const params = new URLSearchParams({
+    ...credentials,
+    csrfToken: csrfToken || "",
+    json: "true",
+  });
+  const res = await fetch(`/api/auth/callback/${provider}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+    redirect: "follow",
+  });
+  return { ok: res.ok };
+}
+
 export default function RegisterPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -42,31 +59,17 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
     try {
-      // Verify OTP via API first (don't use signIn yet)
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.toLowerCase().trim(), code }),
+      const result = await credentialsSignIn("otp", {
+        email: email.toLowerCase().trim(),
+        code,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Invalid or expired code");
-        return;
+      if (result.ok) {
+        setStep("password");
+      } else {
+        setError("Invalid or expired code");
       }
-      // OTP verified, now sign in and go to password step
-      try {
-        await signIn("otp", {
-          email: email.toLowerCase().trim(),
-          code,
-          redirect: false,
-        });
-      } catch {
-        // signIn may throw in v5 even on success, ignore
-      }
-      setStep("password");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg || "Verification failed");
+    } catch {
+      setError("Verification failed");
     } finally {
       setLoading(false);
     }
@@ -94,7 +97,7 @@ export default function RegisterPage() {
         const data = await res.json();
         throw new Error(data.error || "Failed to set password");
       }
-      router.push("/session-gen");
+      window.location.href = "/session-gen";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to set password");
     } finally {
@@ -103,7 +106,7 @@ export default function RegisterPage() {
   }
 
   function skipPassword() {
-    router.push("/session-gen");
+    window.location.href = "/session-gen";
   }
 
   return (

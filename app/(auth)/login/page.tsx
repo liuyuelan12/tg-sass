@@ -1,13 +1,44 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { signIn } from "next-auth/react";
+import { getCsrfToken } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+
+async function credentialsSignIn(
+  provider: string,
+  credentials: Record<string, string>
+): Promise<{ ok: boolean; error?: string }> {
+  const csrfToken = await getCsrfToken();
+
+  const params = new URLSearchParams({
+    ...credentials,
+    csrfToken: csrfToken || "",
+    json: "true",
+  });
+
+  const res = await fetch(`/api/auth/callback/${provider}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+    redirect: "follow",
+  });
+
+  if (res.ok) {
+    return { ok: true };
+  }
+
+  // Check if redirected to error page
+  if (res.url?.includes("error")) {
+    return { ok: false, error: "CredentialsSignin" };
+  }
+
+  return { ok: false, error: "Unknown error" };
+}
 
 export default function LoginPage() {
   return (
@@ -33,18 +64,15 @@ function LoginForm() {
     setLoading(true);
     setError("");
     try {
-      await signIn("admin", {
-        email,
-        password,
-        redirectTo: "/admin/dashboard",
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("CredentialsSignin")) {
-        setError("Invalid credentials");
+      const result = await credentialsSignIn("admin", { email, password });
+      if (result.ok) {
+        window.location.href = "/admin/dashboard";
       } else {
-        setError("Login failed");
+        setError("Invalid credentials");
       }
+    } catch {
+      setError("Login failed");
+    } finally {
       setLoading(false);
     }
   }
@@ -53,18 +81,15 @@ function LoginForm() {
     setLoading(true);
     setError("");
     try {
-      await signIn("password", {
-        email,
-        password,
-        redirectTo: "/session-gen",
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("CredentialsSignin")) {
-        setError("Invalid email or password. If you registered with OTP and haven't set a password, please use OTP login.");
+      const result = await credentialsSignIn("password", { email, password });
+      if (result.ok) {
+        window.location.href = "/session-gen";
       } else {
-        setError("Login failed");
+        setError("Invalid email or password. If you registered with OTP and haven't set a password, please use OTP login.");
       }
+    } catch {
+      setError("Login failed");
+    } finally {
       setLoading(false);
     }
   }
@@ -73,7 +98,6 @@ function LoginForm() {
     setLoading(true);
     setError("");
     try {
-      // Check if user exists first
       const checkRes = await fetch("/api/auth/check-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,18 +129,18 @@ function LoginForm() {
     setLoading(true);
     setError("");
     try {
-      await signIn("otp", {
+      const result = await credentialsSignIn("otp", {
         email: email.toLowerCase().trim(),
         code,
-        redirectTo: "/session-gen",
       });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("CredentialsSignin")) {
-        setError("Invalid or expired code");
+      if (result.ok) {
+        window.location.href = "/session-gen";
       } else {
-        setError("Verification failed");
+        setError("Invalid or expired code");
       }
+    } catch {
+      setError("Verification failed");
+    } finally {
       setLoading(false);
     }
   }
