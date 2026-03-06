@@ -21,10 +21,11 @@ async function credentialsSignIn(
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
-    redirect: "manual",
+    redirect: "follow",
+    credentials: "include",
   });
-  const location = res.headers.get("location") || "";
-  return { ok: !location.includes("error") };
+  // After following the 302 redirect, check the final URL for error parameter
+  return { ok: !res.url?.includes("error") };
 }
 
 export default function RegisterPage() {

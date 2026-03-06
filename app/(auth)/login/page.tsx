@@ -24,19 +24,15 @@ async function credentialsSignIn(
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params.toString(),
-    redirect: "manual",
+    redirect: "follow",
+    credentials: "include",
   });
 
-  // NextAuth callback always returns 302
-  // Success: redirects to "/" or callbackUrl (no "error" in URL)
-  // Failure: redirects to "/login?error=CredentialsSignin"
-  const location = res.headers.get("location") || "";
-
-  if (location.includes("error")) {
+  // After following the 302 redirect, check the final URL for error parameter
+  if (res.url?.includes("error")) {
     return { ok: false, error: "CredentialsSignin" };
   }
 
-  // 302 with no error = success, session cookie is set
   return { ok: true };
 }
 
