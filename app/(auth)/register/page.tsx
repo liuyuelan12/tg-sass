@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getCsrfToken } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,72 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 import { signIn as nextAuthSignIn } from "next-auth/react";
+import { useLanguage } from "@/lib/useLanguage";
+
+const translations = {
+  en: {
+    failedToSend: "Failed to send code",
+    invalidOtp: "Invalid or expired code",
+    verificationFailed: "Verification failed",
+    passwordTooShort: "Password must be at least 6 characters",
+    passwordsNoMatch: "Passwords do not match",
+    failedToSetPassword: "Failed to set password",
+    setPasswordTitle: "Set Password",
+    createAccountTitle: "Create Account",
+    setPasswordDesc: "Set a password for future logins",
+    createAccountDesc: "Get started with a 3-hour free trial",
+    email: "Email",
+    emailPlaceholder: "you@example.com",
+    sending: "Sending...",
+    sendVerifyCode: "Send Verification Code",
+    sentCodeTo: "We sent a code to",
+    verifyCode: "Verification Code",
+    verifying: "Verifying...",
+    verify: "Verify",
+    useDifferentEmail: "Use different email",
+    setPasswordGuide: "Set a password so you can log in with email + password later.",
+    password: "Password",
+    passwordPlaceholder: "At least 6 characters",
+    confirmPassword: "Confirm Password",
+    confirmPlaceholder: "Confirm password",
+    setting: "Setting...",
+    setPasswordAndContinue: "Set Password & Continue",
+    skipForNow: "Skip for now",
+    alreadyHaveAccount: "Already have an account?",
+    signIn: "Sign in",
+  },
+  zh: {
+    failedToSend: "验证码发送失败",
+    invalidOtp: "验证码无效或已过期",
+    verificationFailed: "验证失败",
+    passwordTooShort: "密码长度不能少于6个字符",
+    passwordsNoMatch: "两次输入的密码不一致",
+    failedToSetPassword: "设置密码失败",
+    setPasswordTitle: "设置密码",
+    createAccountTitle: "创建账号",
+    setPasswordDesc: "设置密码以便日后登录",
+    createAccountDesc: "立即开始",
+    email: "邮箱",
+    emailPlaceholder: "you@example.com",
+    sending: "发送中...",
+    sendVerifyCode: "发送验证码",
+    sentCodeTo: "我们已将验证码发送至",
+    verifyCode: "验证码",
+    verifying: "验证中...",
+    verify: "验 证",
+    useDifferentEmail: "使用其他邮箱",
+    setPasswordGuide: "设置一个密码，以后可以使用邮箱+密码登录。",
+    password: "密码",
+    passwordPlaceholder: "至少6个字符",
+    confirmPassword: "确认密码",
+    confirmPlaceholder: "确认您的密码",
+    setting: "设置中...",
+    setPasswordAndContinue: "设置密码并继续",
+    skipForNow: "暂不设置跳过",
+    alreadyHaveAccount: "已有账号？",
+    signIn: "立即登录",
+  }
+};
 
 async function credentialsSignIn(
   provider: string,
@@ -26,6 +92,9 @@ async function credentialsSignIn(
 }
 
 export default function RegisterPage() {
+  const { lang, mounted } = useLanguage();
+  const t = translations[lang];
+
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -47,7 +116,7 @@ export default function RegisterPage() {
       if (!res.ok) throw new Error(data.error);
       setStep("otp");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send code");
+      setError(err instanceof Error ? err.message : t.failedToSend);
     } finally {
       setLoading(false);
     }
@@ -64,10 +133,10 @@ export default function RegisterPage() {
       if (result.ok) {
         setStep("password");
       } else {
-        setError("Invalid or expired code");
+        setError(t.invalidOtp);
       }
     } catch {
-      setError("Verification failed");
+      setError(t.verificationFailed);
     } finally {
       setLoading(false);
     }
@@ -76,11 +145,11 @@ export default function RegisterPage() {
   async function handleSetPassword() {
     setError("");
     if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+      setError(t.passwordTooShort);
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError(t.passwordsNoMatch);
       return;
     }
 
@@ -93,11 +162,11 @@ export default function RegisterPage() {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to set password");
+        throw new Error(data.error || t.failedToSetPassword);
       }
       window.location.href = "/session-gen";
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to set password");
+      setError(err instanceof Error ? err.message : t.failedToSetPassword);
     } finally {
       setLoading(false);
     }
@@ -107,17 +176,35 @@ export default function RegisterPage() {
     window.location.href = "/session-gen";
   }
 
+  // Clear error when changing steps
+  useEffect(() => {
+    setError("");
+  }, [step]);
+
+  // Prevent hydration mismatch for text by ensuring mounted
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl invisible">Create Account</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">
-            {step === "password" ? "Set Password" : "Create Account"}
+            {step === "password" ? t.setPasswordTitle : t.createAccountTitle}
           </CardTitle>
           <CardDescription>
             {step === "password"
-              ? "Set a password for future logins"
-              : "Get started with a 3-hour free trial"}
+              ? t.setPasswordDesc
+              : t.createAccountDesc}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -130,11 +217,11 @@ export default function RegisterPage() {
           {step === "email" && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t.email}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t.emailPlaceholder}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
@@ -145,7 +232,7 @@ export default function RegisterPage() {
                 onClick={handleSendOtp}
                 disabled={loading || !email}
               >
-                {loading ? "Sending..." : "Send Verification Code"}
+                {loading ? t.sending : t.sendVerifyCode}
               </Button>
             </div>
           )}
@@ -153,10 +240,10 @@ export default function RegisterPage() {
           {step === "otp" && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                We sent a code to <strong>{email}</strong>
+                {t.sentCodeTo} <strong>{email}</strong>
               </p>
               <div className="space-y-2">
-                <Label htmlFor="code">Verification Code</Label>
+                <Label htmlFor="code">{t.verifyCode}</Label>
                 <Input
                   id="code"
                   type="text"
@@ -173,7 +260,7 @@ export default function RegisterPage() {
                 onClick={handleVerify}
                 disabled={loading || code.length < 6}
               >
-                {loading ? "Verifying..." : "Verify"}
+                {loading ? t.verifying : t.verify}
               </Button>
               <Button
                 variant="ghost"
@@ -183,7 +270,7 @@ export default function RegisterPage() {
                   setCode("");
                 }}
               >
-                Use different email
+                {t.useDifferentEmail}
               </Button>
             </div>
           )}
@@ -191,24 +278,24 @@ export default function RegisterPage() {
           {step === "password" && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Set a password so you can log in with email + password later.
+                {t.setPasswordGuide}
               </p>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t.password}</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="At least 6 characters"
+                  placeholder={t.passwordPlaceholder}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm">Confirm Password</Label>
+                <Label htmlFor="confirm">{t.confirmPassword}</Label>
                 <Input
                   id="confirm"
                   type="password"
-                  placeholder="Confirm password"
+                  placeholder={t.confirmPlaceholder}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSetPassword()}
@@ -219,23 +306,23 @@ export default function RegisterPage() {
                 onClick={handleSetPassword}
                 disabled={loading || !password}
               >
-                {loading ? "Setting..." : "Set Password & Continue"}
+                {loading ? t.setting : t.setPasswordAndContinue}
               </Button>
               <Button
                 variant="ghost"
                 className="w-full text-muted-foreground"
                 onClick={skipPassword}
               >
-                Skip for now
+                {t.skipForNow}
               </Button>
             </div>
           )}
 
           {step !== "password" && (
             <div className="mt-6 text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
+              {t.alreadyHaveAccount}{" "}
               <Link href="/login" className="text-primary hover:underline">
-                Sign in
+                {t.signIn}
               </Link>
             </div>
           )}

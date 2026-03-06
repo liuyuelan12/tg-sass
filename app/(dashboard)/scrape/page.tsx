@@ -7,6 +7,84 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useLanguage } from "@/lib/useLanguage";
+
+const translations = {
+  en: {
+    pageTitle: "Group Scraper",
+    newScrapeJob: "New Scrape Job",
+    session: "Session",
+    chooseSession: "Choose a session...",
+    groupLink: "Group Link / Username",
+    groupLinkPlaceholder: "t.me/groupname or t.me/groupname/123",
+    messages: "Messages",
+    creatingJob: "Creating job...",
+    failedCreate: "Failed to create job",
+    connecting: "Connecting...",
+    completed: "Completed! {count} messages scraped.",
+    error: "Error: {error}",
+    stopping: "Stopping...",
+    uploadSuccess: "Files uploaded successfully!",
+    uploadFailed: "Upload failed: {error}",
+    uploadFailedShort: "Upload failed",
+    scraping: "Scraping...",
+    startScrape: "Start Scrape",
+    stop: "Stop",
+    uploadSourceTitle: "Upload Data Source",
+    uploadSourceDesc: "Upload a CSV (and optional media ZIP) as a data source for auto-chat.",
+    csvFile: "CSV File",
+    mediaZip: "Media ZIP (optional)",
+    targetGroup: "Target Group",
+    targetGroupPlaceholder: "Group username or link",
+    uploading: "Uploading...",
+    upload: "Upload",
+    dataSources: "Data Sources",
+    noDataSources: "No data sources yet. Scrape a group or upload files.",
+    msgs: "msgs",
+    download: "Download",
+    delete: "Delete",
+    topic: "Topic:",
+    mediaDownloaded: "Media: {d} downloaded, {s} skipped",
+    progressMsgs: "{f} / {t} messages",
+  },
+  zh: {
+    pageTitle: "群组采集器",
+    newScrapeJob: "新建采集任务",
+    session: "TG 账号",
+    chooseSession: "选择账号...",
+    groupLink: "群组链接 / 用户名",
+    groupLinkPlaceholder: "t.me/groupname 或 t.me/groupname/123",
+    messages: "消息数量",
+    creatingJob: "正在创建任务...",
+    failedCreate: "创建任务失败",
+    connecting: "连接中...",
+    completed: "完成！共采集了 {count} 条消息。",
+    error: "错误: {error}",
+    stopping: "停止中...",
+    uploadSuccess: "文件上传成功！",
+    uploadFailed: "上传失败: {error}",
+    uploadFailedShort: "上传失败",
+    scraping: "采集中...",
+    startScrape: "开始采集",
+    stop: "停止",
+    uploadSourceTitle: "上传数据源",
+    uploadSourceDesc: "上传 CSV（及可选的媒体 ZIP）作为自动群聊的数据源。",
+    csvFile: "CSV 文件",
+    mediaZip: "媒体 ZIP (可选)",
+    targetGroup: "目标群组",
+    targetGroupPlaceholder: "群组用户名或链接",
+    uploading: "上传中...",
+    upload: "上传",
+    dataSources: "数据源",
+    noDataSources: "暂无数据源。请采集一个群组或上传文件。",
+    msgs: "条消息",
+    download: "下载",
+    delete: "删除",
+    topic: "话题:",
+    mediaDownloaded: "媒体素材: 已下载 {d}，跳过 {s}",
+    progressMsgs: "{f} / {t} 条消息",
+  }
+};
 
 interface TgSession {
   id: string;
@@ -34,6 +112,9 @@ interface ScrapeProgressData {
 }
 
 export default function ScrapePage() {
+  const { lang, mounted } = useLanguage();
+  const t = translations[lang];
+
   const [sessions, setSessions] = useState<TgSession[]>([]);
   const [jobs, setJobs] = useState<ScrapeJob[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
@@ -72,7 +153,7 @@ export default function ScrapePage() {
     if (!selectedSessionId || !groupLink) return;
     setScraping(true);
     setProgress(null);
-    setStatusText("Creating job...");
+    setStatusText(t.creatingJob);
 
     try {
       const res = await fetch("/api/telegram/scrape", {
@@ -87,12 +168,12 @@ export default function ScrapePage() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to create job");
+        throw new Error(data.error || t.failedCreate);
       }
 
       const job = await res.json();
       setActiveJobId(job.id);
-      setStatusText("Connecting...");
+      setStatusText(t.connecting);
 
       const socket = connectSocket();
 
@@ -105,7 +186,7 @@ export default function ScrapePage() {
 
       socket.on("scrape:done", (data: { jobId: string; totalMessages: number }) => {
         if (data.jobId === job.id) {
-          setStatusText(`Completed! ${data.totalMessages} messages scraped.`);
+          setStatusText(t.completed.replace("{count}", String(data.totalMessages)));
           setScraping(false);
           setActiveJobId(null);
           refreshJobs();
@@ -114,7 +195,7 @@ export default function ScrapePage() {
 
       socket.on("scrape:error", (data: { jobId: string; error: string }) => {
         if (data.jobId === job.id) {
-          setStatusText(`Error: ${data.error}`);
+          setStatusText(t.error.replace("{error}", data.error));
           setScraping(false);
           setActiveJobId(null);
           refreshJobs();
@@ -123,7 +204,7 @@ export default function ScrapePage() {
 
       socket.emit("scrape:start", { jobId: job.id, sessionId: selectedSessionId });
     } catch (err) {
-      setStatusText(err instanceof Error ? err.message : "Error");
+      setStatusText(err instanceof Error ? err.message : t.error.replace("{error}", "Unknown"));
       setScraping(false);
     }
   }
@@ -131,7 +212,7 @@ export default function ScrapePage() {
   function stopScrape() {
     if (activeJobId && socketRef.current) {
       socketRef.current.emit("scrape:stop", { jobId: activeJobId });
-      setStatusText("Stopping...");
+      setStatusText(t.stopping);
     }
   }
 
@@ -168,19 +249,21 @@ export default function ScrapePage() {
         body: formData,
       });
       if (res.ok) {
-        setStatusText("Files uploaded successfully!");
+        setStatusText(t.uploadSuccess);
         refreshJobs();
         (e.target as HTMLFormElement).reset();
       } else {
         const data = await res.json();
-        setStatusText(`Upload failed: ${data.error || "Unknown error"}`);
+        setStatusText(t.uploadFailed.replace("{error}", data.error || "Unknown"));
       }
     } catch {
-      setStatusText("Upload failed");
+      setStatusText(t.uploadFailedShort);
     } finally {
       setUploading(false);
     }
   }
+
+  if (!mounted) return null;
 
   const progressPct = progress
     ? Math.round((progress.fetched / progress.total) * 100)
@@ -188,22 +271,22 @@ export default function ScrapePage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <h1 className="text-2xl font-bold">Group Scraper</h1>
+      <h1 className="text-2xl font-bold">{t.pageTitle}</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">New Scrape Job</CardTitle>
+          <CardTitle className="text-base">{t.newScrapeJob}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Session</Label>
+            <Label>{t.session}</Label>
             <select
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
               value={selectedSessionId}
               onChange={(e) => setSelectedSessionId(e.target.value)}
               disabled={scraping}
             >
-              <option value="">Choose a session...</option>
+              <option value="">{t.chooseSession}</option>
               {sessions
                 .filter((s) => s.isActive)
                 .map((s) => (
@@ -213,16 +296,16 @@ export default function ScrapePage() {
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2 space-y-2">
-              <Label>Group Link / Username</Label>
+              <Label>{t.groupLink}</Label>
               <Input
-                placeholder="t.me/groupname or t.me/groupname/123"
+                placeholder={t.groupLinkPlaceholder}
                 value={groupLink}
                 onChange={(e) => setGroupLink(e.target.value)}
                 disabled={scraping}
               />
             </div>
             <div className="space-y-2">
-              <Label>Messages</Label>
+              <Label>{t.messages}</Label>
               <Input
                 type="number"
                 value={count}
@@ -246,9 +329,9 @@ export default function ScrapePage() {
                     />
                   </div>
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{progress.fetched} / {progress.total} messages</span>
+                    <span>{t.progressMsgs.replace("{f}", String(progress.fetched)).replace("{t}", String(progress.total))}</span>
                     <span>
-                      Media: {progress.mediaDownloaded} downloaded, {progress.mediaSkipped} skipped
+                      {t.mediaDownloaded.replace("{d}", String(progress.mediaDownloaded)).replace("{s}", String(progress.mediaSkipped))}
                     </span>
                   </div>
                 </>
@@ -261,11 +344,11 @@ export default function ScrapePage() {
               onClick={startScrape}
               disabled={scraping || !selectedSessionId || !groupLink}
             >
-              {scraping ? "Scraping..." : "Start Scrape"}
+              {scraping ? t.scraping : t.startScrape}
             </Button>
             {scraping && (
               <Button variant="destructive" onClick={stopScrape}>
-                Stop
+                {t.stop}
               </Button>
             )}
           </div>
@@ -275,30 +358,30 @@ export default function ScrapePage() {
       {/* Upload section */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Upload Data Source</CardTitle>
+          <CardTitle className="text-base">{t.uploadSourceTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            Upload a CSV (and optional media ZIP) as a data source for auto-chat.
+            {t.uploadSourceDesc}
           </p>
           <form onSubmit={handleUpload}>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>CSV File</Label>
+                  <Label>{t.csvFile}</Label>
                   <Input type="file" name="csv" accept=".csv" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Media ZIP (optional)</Label>
+                  <Label>{t.mediaZip}</Label>
                   <Input type="file" name="media" accept=".zip" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Target Group</Label>
-                <Input name="groupEntity" placeholder="Group username or link" required />
+                <Label>{t.targetGroup}</Label>
+                <Input name="groupEntity" placeholder={t.targetGroupPlaceholder} required />
               </div>
               <Button type="submit" disabled={uploading}>
-                {uploading ? "Uploading..." : "Upload"}
+                {uploading ? t.uploading : t.upload}
               </Button>
             </div>
           </form>
@@ -307,9 +390,9 @@ export default function ScrapePage() {
 
       {/* Data Sources (Scrape Jobs) */}
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Data Sources ({jobs.length})</h2>
+        <h2 className="text-lg font-semibold">{t.dataSources} ({jobs.length})</h2>
         {jobs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No data sources yet. Scrape a group or upload files.</p>
+          <p className="text-sm text-muted-foreground">{t.noDataSources}</p>
         ) : (
           <div className="space-y-2">
             {jobs.map((job) => (
@@ -330,11 +413,11 @@ export default function ScrapePage() {
                     <span className="text-sm">{job.groupEntity}</span>
                     {job.topicId && (
                       <span className="text-xs text-muted-foreground">
-                        Topic: {job.topicId}
+                        {t.topic} {job.topicId}
                       </span>
                     )}
                     <span className="text-xs text-muted-foreground">
-                      {job.messageCount} msgs
+                      {job.messageCount} {t.msgs}
                     </span>
                   </div>
                   <div className="flex gap-2">
@@ -344,7 +427,7 @@ export default function ScrapePage() {
                         size="sm"
                         onClick={() => downloadJob(job.id)}
                       >
-                        Download
+                        {t.download}
                       </Button>
                     )}
                     <Button
@@ -353,7 +436,7 @@ export default function ScrapePage() {
                       onClick={() => deleteJob(job.id)}
                       disabled={deletingId === job.id}
                     >
-                      {deletingId === job.id ? "..." : "Delete"}
+                      {deletingId === job.id ? "..." : t.delete}
                     </Button>
                   </div>
                 </CardContent>

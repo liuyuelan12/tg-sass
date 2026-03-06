@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion, AnimatePresence } from "framer-motion";
 import { Globe, ArrowRight, CheckCircle2 } from "lucide-react";
-
-type Language = "en" | "zh";
+import { useLanguage, Language } from "@/lib/useLanguage";
 
 const translations = {
   en: {
@@ -193,30 +192,7 @@ const staggerContainer = {
 };
 
 export default function LandingPage() {
-  const [lang, setLang] = useState<Language>("zh");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    // Read user preference from local storage if available on mount
-    const savedLang = localStorage.getItem("tg-saas-lang") as Language;
-    if (savedLang && (savedLang === "en" || savedLang === "zh")) {
-      setLang(savedLang);
-    } else {
-      // Auto-detect browser language
-      if (navigator.language.startsWith("en")) {
-        setLang("en");
-      } else {
-        setLang("zh");
-      }
-    }
-    setMounted(true);
-  }, []);
-
-  const toggleLanguage = () => {
-    const newLang = lang === "en" ? "zh" : "en";
-    setLang(newLang);
-    localStorage.setItem("tg-saas-lang", newLang);
-  };
+  const { lang, mounted, toggleLanguage } = useLanguage();
 
   if (!mounted) return null; // Prevent hydration mismatch
 

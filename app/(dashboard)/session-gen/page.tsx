@@ -7,6 +7,70 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useLanguage } from "@/lib/useLanguage";
+
+const translations = {
+  en: {
+    pageTitle: "Session Manager",
+    newSessionBtn: "+ New Session",
+    generateSession: "Generate New Session",
+    phonePlaceholder: "Phone number (e.g., +86...)",
+    codePlaceholder: "Verification code",
+    passwordPlaceholder: "2FA Password",
+    send: "Send",
+    yourSessions: "Your Sessions",
+    batchCheckAll: "Batch Check All",
+    checking: "Checking...",
+    deleteInvalid: "Delete Invalid",
+    deleting: "Deleting...",
+    loading: "Loading...",
+    noSessions: "No sessions yet. Create one to get started.",
+    active: "Active",
+    dead: "Dead",
+    check: "Check",
+    delete: "Delete",
+    logConnecting: "Connecting to server...",
+    logConnected: "Connected. Starting session generation...",
+    logPhone: "Please enter your phone number",
+    logCode: "Verification code sent to your phone",
+    logPassword: "2FA password required",
+    logError: "Error",
+    logGenerated: "Session generated for",
+    logSaved: "Session saved",
+    logDisconnected: "Disconnected",
+    logSent: "Sent",
+  },
+  zh: {
+    pageTitle: "账号管理",
+    newSessionBtn: "+ 获取新账号",
+    generateSession: "获取新 TG 账号",
+    phonePlaceholder: "手机号 (例如: +86...)",
+    codePlaceholder: "验证码",
+    passwordPlaceholder: "二次验证码 (2FA) 密码",
+    send: "发送",
+    yourSessions: "你的 TG 账号",
+    batchCheckAll: "一键检测所有状态",
+    checking: "检测中...",
+    deleteInvalid: "一键删除失效账号",
+    deleting: "删除中...",
+    loading: "加载中...",
+    noSessions: "暂无账号。请点击“获取新账号”开始。",
+    active: "正常",
+    dead: "失效",
+    check: "检测",
+    delete: "删除",
+    logConnecting: "正在连接服务器...",
+    logConnected: "已连接。即将开始获取账号...",
+    logPhone: "请输入你的手机号（带国家代码，如 +86138...）",
+    logCode: "验证码已发送至你的 TG，请在下方输入",
+    logPassword: "该账号启用了二次验证，请输入 2FA 密码",
+    logError: "错误",
+    logGenerated: "成功获取账号",
+    logSaved: "账号已保存",
+    logDisconnected: "连接已断开",
+    logSent: "已发送",
+  }
+};
 
 interface TgSession {
   id: string;
@@ -18,6 +82,9 @@ interface TgSession {
 type Step = "idle" | "phone" | "code" | "password" | "connecting" | "done";
 
 export default function SessionGenPage() {
+  const { lang, mounted } = useLanguage();
+  const t = translations[lang];
+
   const { data: session } = useSession();
   const [sessions, setSessions] = useState<TgSession[]>([]);
   const [step, setStep] = useState<Step>("idle");
@@ -52,10 +119,10 @@ export default function SessionGenPage() {
     const socket = io({ path: "/api/socketio" });
     socketRef.current = socket;
     setStep("connecting");
-    setLogs(["Connecting to server..."]);
+    setLogs([t.logConnecting]);
 
     socket.on("connect", () => {
-      addLog("Connected. Starting session generation...");
+      addLog(t.logConnected);
       socket.emit("session:start");
     });
 
@@ -63,28 +130,28 @@ export default function SessionGenPage() {
       switch (event.type) {
         case "request_phone":
           setStep("phone");
-          addLog("Please enter your phone number");
+          addLog(t.logPhone);
           break;
         case "request_code":
           setStep("code");
-          addLog("Verification code sent to your phone");
+          addLog(t.logCode);
           break;
         case "request_password":
           setStep("password");
-          addLog("2FA password required");
+          addLog(t.logPassword);
           break;
         case "error":
-          addLog(`Error: ${event.message}`);
+          addLog(`${t.logError}: ${event.message}`);
           break;
         case "success":
           setStep("done");
-          addLog(`Session generated for ${event.name} ${event.username ? `@${event.username}` : ""}`);
+          addLog(`${t.logGenerated} ${event.name} ${event.username ? `@${event.username}` : ""}`);
           break;
       }
     });
 
     socket.on("session:saved", (data: { label: string }) => {
-      addLog(`Session saved: ${data.label}`);
+      addLog(`${t.logSaved}: ${data.label}`);
       fetchSessions();
       setTimeout(() => {
         socket.disconnect();
@@ -93,14 +160,14 @@ export default function SessionGenPage() {
     });
 
     socket.on("disconnect", () => {
-      addLog("Disconnected");
+      addLog(t.logDisconnected);
     });
   }
 
   function sendInput() {
     if (socketRef.current && input) {
       socketRef.current.emit("session:input", input);
-      addLog(`Sent: ${"*".repeat(input.length)}`);
+      addLog(`${t.logSent}: ${"*".repeat(input.length)}`);
       setInput("");
     }
   }
@@ -163,26 +230,28 @@ export default function SessionGenPage() {
     }
   }
 
+  if (!mounted) return null;
+
   const invalidCount = sessions.filter((s) => !s.isActive).length;
 
   const promptLabel =
     step === "phone"
-      ? "Phone number (e.g., +86...)"
+      ? t.phonePlaceholder
       : step === "code"
-        ? "Verification code"
+        ? t.codePlaceholder
         : step === "password"
-          ? "2FA Password"
+          ? t.passwordPlaceholder
           : "";
 
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Session Manager</h1>
+        <h1 className="text-2xl font-bold">{t.pageTitle}</h1>
         <Button
           onClick={startGeneration}
           disabled={step !== "idle" && step !== "done"}
         >
-          + New Session
+          {t.newSessionBtn}
         </Button>
       </div>
 
@@ -190,7 +259,7 @@ export default function SessionGenPage() {
       {step !== "idle" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Generate New Session</CardTitle>
+            <CardTitle className="text-base">{t.generateSession}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {(step === "phone" || step === "code" || step === "password") && (
@@ -204,7 +273,7 @@ export default function SessionGenPage() {
                   autoFocus
                 />
                 <Button onClick={sendInput} disabled={!input}>
-                  Send
+                  {t.send}
                 </Button>
               </div>
             )}
@@ -222,7 +291,7 @@ export default function SessionGenPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">
-            Your Sessions ({sessions.length})
+            {t.yourSessions} ({sessions.length})
           </h2>
           <div className="flex gap-2">
             <Button
@@ -231,7 +300,7 @@ export default function SessionGenPage() {
               onClick={batchCheck}
               disabled={batchChecking || sessions.length === 0}
             >
-              {batchChecking ? "Checking..." : "Batch Check All"}
+              {batchChecking ? t.checking : t.batchCheckAll}
             </Button>
             {invalidCount > 0 && (
               <Button
@@ -240,16 +309,16 @@ export default function SessionGenPage() {
                 onClick={deleteAllInvalid}
                 disabled={deletingInvalid}
               >
-                {deletingInvalid ? "Deleting..." : `Delete Invalid (${invalidCount})`}
+                {deletingInvalid ? t.deleting : `${t.deleteInvalid} (${invalidCount})`}
               </Button>
             )}
           </div>
         </div>
 
         {loading ? (
-          <p className="text-muted-foreground text-sm">Loading...</p>
+          <p className="text-muted-foreground text-sm">{t.loading}</p>
         ) : sessions.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No sessions yet. Create one to get started.</p>
+          <p className="text-muted-foreground text-sm">{t.noSessions}</p>
         ) : (
           <div className="space-y-2">
             {sessions.map((s) => (
@@ -257,7 +326,7 @@ export default function SessionGenPage() {
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
                     <Badge variant={s.isActive ? "default" : "destructive"}>
-                      {s.isActive ? "Active" : "Dead"}
+                      {s.isActive ? t.active : t.dead}
                     </Badge>
                     <span className="text-sm font-medium">{s.label}</span>
                     <span className="text-xs text-muted-foreground">
@@ -270,14 +339,14 @@ export default function SessionGenPage() {
                       size="sm"
                       onClick={() => checkSession(s.id)}
                     >
-                      Check
+                      {t.check}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => deleteSession(s.id)}
                     >
-                      Delete
+                      {t.delete}
                     </Button>
                   </div>
                 </CardContent>

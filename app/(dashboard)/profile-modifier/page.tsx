@@ -6,6 +6,54 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useLanguage } from "@/lib/useLanguage";
+
+const translations = {
+  en: {
+    pageTitle: "Profile Modifier",
+    yourSessions: "Your Sessions",
+    loading: "Loading...",
+    noSessions: "No sessions. Go to Sessions to create one.",
+    active: "Active",
+    dead: "Dead",
+    edit: "Edit",
+    delete: "Delete",
+    editProfile: "Edit Profile -",
+    close: "Close",
+    firstName: "First Name",
+    lastName: "Last Name",
+    username: "Username (without @)",
+    newAvatar: "New Avatar",
+    profileUpdated: "Profile updated!",
+    failedLoad: "Failed to load profile",
+    updateFailed: "Update failed",
+    error: "Error",
+    updating: "Updating...",
+    updateProfileBtn: "Update Profile"
+  },
+  zh: {
+    pageTitle: "修改资料",
+    yourSessions: "你的 TG 账号",
+    loading: "加载中...",
+    noSessions: "暂无账号。请前往“账号管理”获取新账号。",
+    active: "正常",
+    dead: "失效",
+    edit: "编辑",
+    delete: "删除",
+    editProfile: "编辑资料 -",
+    close: "关闭",
+    firstName: "名 (First Name)",
+    lastName: "姓 (Last Name)",
+    username: "用户名 (不含 @)",
+    newAvatar: "新头像",
+    profileUpdated: "资料更新成功！",
+    failedLoad: "加载资料失败",
+    updateFailed: "更新失败",
+    error: "错误",
+    updating: "更新中...",
+    updateProfileBtn: "更新资料"
+  }
+};
 
 interface TgSession {
   id: string;
@@ -25,6 +73,9 @@ interface EditState {
 }
 
 export default function ProfileModifierPage() {
+  const { lang, mounted } = useLanguage();
+  const t = translations[lang];
+
   const [sessions, setSessions] = useState<TgSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [editState, setEditState] = useState<EditState | null>(null);
@@ -55,8 +106,8 @@ export default function ProfileModifierPage() {
       const res = await fetch(`/api/telegram/profile?sessionId=${sessionId}`);
       if (!res.ok) {
         const text = await res.text();
-        let msg = "Failed to load profile";
-        try { msg = JSON.parse(text).error || msg; } catch {}
+        let msg = t.failedLoad;
+        try { msg = JSON.parse(text).error || msg; } catch { }
         throw new Error(msg);
       }
       const data = await res.json();
@@ -77,7 +128,7 @@ export default function ProfileModifierPage() {
         username: "",
         avatarFile: null,
         loading: false,
-        message: err instanceof Error ? err.message : "Failed to load profile",
+        message: err instanceof Error ? err.message : t.failedLoad,
       });
     } finally {
       setLoadingProfileId(null);
@@ -104,8 +155,8 @@ export default function ProfileModifierPage() {
       });
       if (!res.ok) {
         const text = await res.text();
-        let msg = "Update failed";
-        try { msg = JSON.parse(text).error || msg; } catch {}
+        let msg = t.updateFailed;
+        try { msg = JSON.parse(text).error || msg; } catch { }
         throw new Error(msg);
       }
 
@@ -116,12 +167,12 @@ export default function ProfileModifierPage() {
         prev.map((s) => (s.id === editState.sessionId ? { ...s, label: newLabel } : s))
       );
 
-      setEditState({ ...editState, loading: false, message: "Profile updated!" });
+      setEditState({ ...editState, loading: false, message: t.profileUpdated });
     } catch (err) {
       setEditState({
         ...editState,
         loading: false,
-        message: err instanceof Error ? err.message : "Error",
+        message: err instanceof Error ? err.message : t.error,
       });
     }
   }
@@ -143,18 +194,20 @@ export default function ProfileModifierPage() {
     }
   }
 
+  if (!mounted) return null;
+
   return (
     <div className="space-y-6 max-w-4xl">
-      <h1 className="text-2xl font-bold">Profile Modifier</h1>
+      <h1 className="text-2xl font-bold">{t.pageTitle}</h1>
 
       {/* Session List */}
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Your Sessions ({sessions.length})</h2>
+        <h2 className="text-lg font-semibold">{t.yourSessions} ({sessions.length})</h2>
 
         {loading ? (
-          <p className="text-muted-foreground text-sm">Loading...</p>
+          <p className="text-muted-foreground text-sm">{t.loading}</p>
         ) : sessions.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No sessions. Go to Sessions to create one.</p>
+          <p className="text-muted-foreground text-sm">{t.noSessions}</p>
         ) : (
           <div className="space-y-2">
             {sessions.map((s) => (
@@ -165,7 +218,7 @@ export default function ProfileModifierPage() {
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
                     <Badge variant={s.isActive ? "default" : "destructive"}>
-                      {s.isActive ? "Active" : "Dead"}
+                      {s.isActive ? t.active : t.dead}
                     </Badge>
                     <span className="text-sm font-medium">{s.label}</span>
                     <span className="text-xs text-muted-foreground">
@@ -179,7 +232,7 @@ export default function ProfileModifierPage() {
                       onClick={() => openEdit(s.id)}
                       disabled={!s.isActive || loadingProfileId === s.id}
                     >
-                      {loadingProfileId === s.id ? "Loading..." : "Edit"}
+                      {loadingProfileId === s.id ? t.loading : t.edit}
                     </Button>
                     <Button
                       variant="ghost"
@@ -187,7 +240,7 @@ export default function ProfileModifierPage() {
                       onClick={() => deleteSession(s.id)}
                       disabled={deletingId === s.id}
                     >
-                      {deletingId === s.id ? "..." : "Delete"}
+                      {deletingId === s.id ? "..." : t.delete}
                     </Button>
                   </div>
                 </CardContent>
@@ -203,17 +256,17 @@ export default function ProfileModifierPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">
-                Edit Profile - {sessions.find((s) => s.id === editState.sessionId)?.label}
+                {t.editProfile} {sessions.find((s) => s.id === editState.sessionId)?.label}
               </CardTitle>
               <Button variant="ghost" size="sm" onClick={() => setEditState(null)}>
-                Close
+                {t.close}
               </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>First Name</Label>
+                <Label>{t.firstName}</Label>
                 <Input
                   value={editState.firstName}
                   onChange={(e) =>
@@ -222,7 +275,7 @@ export default function ProfileModifierPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Last Name</Label>
+                <Label>{t.lastName}</Label>
                 <Input
                   value={editState.lastName}
                   onChange={(e) =>
@@ -232,7 +285,7 @@ export default function ProfileModifierPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Username (without @)</Label>
+              <Label>{t.username}</Label>
               <Input
                 value={editState.username}
                 onChange={(e) =>
@@ -241,7 +294,7 @@ export default function ProfileModifierPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>New Avatar</Label>
+              <Label>{t.newAvatar}</Label>
               <Input
                 type="file"
                 accept="image/*"
@@ -256,11 +309,10 @@ export default function ProfileModifierPage() {
 
             {editState.message && (
               <div
-                className={`text-sm ${
-                  editState.message.includes("updated")
+                className={`text-sm ${editState.message.includes("update") || editState.message.includes("更新成功")
                     ? "text-green-400"
                     : "text-destructive"
-                }`}
+                  }`}
               >
                 {editState.message}
               </div>
@@ -270,7 +322,7 @@ export default function ProfileModifierPage() {
               onClick={handleUpdate}
               disabled={editState.loading}
             >
-              {editState.loading ? "Updating..." : "Update Profile"}
+              {editState.loading ? t.updating : t.updateProfileBtn}
             </Button>
           </CardContent>
         </Card>

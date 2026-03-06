@@ -8,6 +8,92 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useLanguage } from "@/lib/useLanguage";
+
+const translations = {
+  en: {
+    pageTitle: "Auto Chat",
+    configJob: "Configure Job",
+    sessions: "Sessions",
+    selected: "selected",
+    selectAll: "Select All",
+    deselectAll: "Deselect All",
+    dataSource: "Data Source",
+    chooseDataSource: "Choose data source...",
+    msgs: "msgs",
+    delete: "Delete",
+    targetGroup: "Target Group",
+    targetGroupPlaceholder: "t.me/groupname or groupname",
+    minSec: "Min (s)",
+    maxSec: "Max (s)",
+    sendPct: "Send %",
+    replyPct: "Reply %",
+    reactPct: "React %",
+    loopMessages: "Loop after all messages sent",
+    startAutoChat: "Start Auto-Chat",
+    stop: "Stop",
+    uploadSourceTitle: "Upload Data Source",
+    uploadSourceDesc: "Upload a modified CSV (and optional media ZIP) as a data source.",
+    csvFile: "CSV File",
+    mediaZip: "Media ZIP (optional)",
+    groupNameLabel: "Group Name (label)",
+    groupNamePlaceholder: "Group username or link",
+    uploading: "Uploading...",
+    upload: "Upload",
+    uploadSuccess: "Uploaded successfully!",
+    uploadFailed: "Upload failed",
+    liveLogs: "Live Logs",
+    running: "Running",
+    jobHistory: "Job History",
+    clearing: "Clearing...",
+    clearAll: "Clear All",
+    noJobsYet: "No jobs yet",
+    sent: "sent",
+    error: "Error",
+    failed: "Failed",
+  },
+  zh: {
+    pageTitle: "自动群聊",
+    configJob: "配置任务",
+    sessions: "TG 账号",
+    selected: "已选",
+    selectAll: "全选",
+    deselectAll: "取消全选",
+    dataSource: "数据源",
+    chooseDataSource: "选择数据源...",
+    msgs: "条消息",
+    delete: "删除",
+    targetGroup: "目标群组",
+    targetGroupPlaceholder: "t.me/groupname 或群组用户名",
+    minSec: "最小间隔(秒)",
+    maxSec: "最大间隔(秒)",
+    sendPct: "发送概率 %",
+    replyPct: "回复概率 %",
+    reactPct: "表情互动概率 %",
+    loopMessages: "发送完所有消息后循环",
+    startAutoChat: "开始自动群聊",
+    stop: "停止",
+    uploadSourceTitle: "上传数据源",
+    uploadSourceDesc: "上传修改过的话术 CSV（及可选的媒体文件 ZIP）作为数据源。",
+    csvFile: "CSV 文件",
+    mediaZip: "媒体文件 ZIP (可选)",
+    groupNameLabel: "群组名称 (标签)",
+    groupNamePlaceholder: "群组用户名或链接",
+    uploading: "上传中...",
+    upload: "上传",
+    uploadSuccess: "上传成功！",
+    uploadFailed: "上传失败",
+    liveLogs: "实时日志",
+    running: "运行中",
+    jobHistory: "任务历史",
+    clearing: "清理中...",
+    clearAll: "清空全部",
+    noJobsYet: "暂无任务",
+    sent: "已发送",
+    error: "错误",
+    failed: "失败",
+  }
+};
 
 interface TgSession {
   id: string;
@@ -39,6 +125,9 @@ interface LogEntry {
 }
 
 export default function AutoChatPage() {
+  const { lang, mounted } = useLanguage();
+  const t = translations[lang];
+
   const { data: authSession } = useSession();
   const [sessions, setSessions] = useState<TgSession[]>([]);
   const [scrapeJobs, setScrapeJobs] = useState<ScrapeJob[]>([]);
@@ -135,7 +224,7 @@ export default function AutoChatPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed");
+        throw new Error(data.error || t.failed);
       }
 
       const job = await res.json();
@@ -157,7 +246,7 @@ export default function AutoChatPage() {
         ...prev,
         {
           type: "error",
-          message: err instanceof Error ? err.message : "Error",
+          message: err instanceof Error ? err.message : t.error,
           timestamp: Date.now(),
         },
       ]);
@@ -213,15 +302,15 @@ export default function AutoChatPage() {
         body: formData,
       });
       if (res.ok) {
-        setUploadStatus("Uploaded successfully!");
+        setUploadStatus(t.uploadSuccess);
         refreshDataSources();
         (e.target as HTMLFormElement).reset();
       } else {
         const data = await res.json();
-        setUploadStatus(`Failed: ${data.error || "Unknown error"}`);
+        setUploadStatus(`${t.failed}: ${data.error || t.error}`);
       }
     } catch {
-      setUploadStatus("Upload failed");
+      setUploadStatus(t.uploadFailed);
     } finally {
       setUploading(false);
     }
@@ -258,33 +347,37 @@ export default function AutoChatPage() {
     }
   }
 
+  if (!mounted) {
+    return null; // hide until hydration matches
+  }
+
   const activeSessionCount = sessions.filter((s) => s.isActive).length;
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <h1 className="text-2xl font-bold">Auto Chat</h1>
+      <h1 className="text-2xl font-bold">{t.pageTitle}</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Configure Job</CardTitle>
+          <CardTitle className="text-base">{t.configJob}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Session selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Sessions ({selectedSessions.length}/{activeSessionCount} selected)</Label>
+              <Label>{t.sessions} ({selectedSessions.length}/{activeSessionCount} {t.selected})</Label>
               <div className="flex gap-2">
                 <button
                   onClick={selectAllSessions}
                   className="text-xs text-blue-400 hover:underline"
                 >
-                  Select All
+                  {t.selectAll}
                 </button>
                 <button
                   onClick={deselectAllSessions}
                   className="text-xs text-muted-foreground hover:underline"
                 >
-                  Deselect All
+                  {t.deselectAll}
                 </button>
               </div>
             </div>
@@ -296,8 +389,8 @@ export default function AutoChatPage() {
                     key={s.id}
                     onClick={() => toggleSession(s.id)}
                     className={`px-3 py-1 rounded-md text-sm border transition-colors ${selectedSessions.includes(s.id)
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:border-primary/50"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/50"
                       }`}
                   >
                     {s.label}
@@ -308,17 +401,17 @@ export default function AutoChatPage() {
 
           {/* Data source selection */}
           <div className="space-y-2">
-            <Label>Data Source</Label>
+            <Label>{t.dataSource}</Label>
             <div className="flex gap-2">
               <select
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                 value={selectedDataSource}
                 onChange={(e) => setSelectedDataSource(e.target.value)}
               >
-                <option value="">Choose data source...</option>
+                <option value="">{t.chooseDataSource}</option>
                 {scrapeJobs.map((j) => (
                   <option key={j.id} value={j.id}>
-                    {j.groupEntity} ({j.messageCount} msgs)
+                    {j.groupEntity} ({j.messageCount} {t.msgs})
                   </option>
                 ))}
               </select>
@@ -329,7 +422,7 @@ export default function AutoChatPage() {
                   onClick={() => deleteDataSource(selectedDataSource)}
                   disabled={deletingSourceId === selectedDataSource}
                 >
-                  {deletingSourceId === selectedDataSource ? "..." : "Delete"}
+                  {deletingSourceId === selectedDataSource ? "..." : t.delete}
                 </Button>
               )}
             </div>
@@ -337,9 +430,9 @@ export default function AutoChatPage() {
 
           {/* Target */}
           <div className="space-y-2">
-            <Label>Target Group</Label>
+            <Label>{t.targetGroup}</Label>
             <Input
-              placeholder="t.me/groupname or groupname"
+              placeholder={t.targetGroupPlaceholder}
               value={targetGroup}
               onChange={(e) => setTargetGroup(e.target.value)}
             />
@@ -348,23 +441,23 @@ export default function AutoChatPage() {
           {/* Parameters */}
           <div className="grid grid-cols-5 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Min (s)</Label>
+              <Label className="text-xs">{t.minSec}</Label>
               <Input value={intervalMin} onChange={(e) => setIntervalMin(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Max (s)</Label>
+              <Label className="text-xs">{t.maxSec}</Label>
               <Input value={intervalMax} onChange={(e) => setIntervalMax(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Send %</Label>
+              <Label className="text-xs">{t.sendPct}</Label>
               <Input value={sendPct} onChange={(e) => setSendPct(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Reply %</Label>
+              <Label className="text-xs">{t.replyPct}</Label>
               <Input value={replyPct} onChange={(e) => setReplyPct(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">React %</Label>
+              <Label className="text-xs">{t.reactPct}</Label>
               <Input value={reactPct} onChange={(e) => setReactPct(e.target.value)} />
             </div>
           </div>
@@ -377,7 +470,7 @@ export default function AutoChatPage() {
               onChange={(e) => setShouldLoop(e.target.checked)}
               className="rounded"
             />
-            <Label htmlFor="loop">Loop after all messages sent</Label>
+            <Label htmlFor="loop">{t.loopMessages}</Label>
           </div>
 
           <div className="flex gap-3">
@@ -390,11 +483,11 @@ export default function AutoChatPage() {
                   !targetGroup
                 }
               >
-                Start Auto-Chat
+                {t.startAutoChat}
               </Button>
             ) : (
               <Button variant="destructive" onClick={stopJob}>
-                Stop
+                {t.stop}
               </Button>
             )}
           </div>
@@ -404,35 +497,35 @@ export default function AutoChatPage() {
       {/* Upload Data Source */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Upload Data Source</CardTitle>
+          <CardTitle className="text-base">{t.uploadSourceTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            Upload a modified CSV (and optional media ZIP) as a data source.
+            {t.uploadSourceDesc}
           </p>
           <form onSubmit={handleUpload}>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>CSV File</Label>
+                  <Label>{t.csvFile}</Label>
                   <Input type="file" name="csv" accept=".csv" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Media ZIP (optional)</Label>
+                  <Label>{t.mediaZip}</Label>
                   <Input type="file" name="media" accept=".zip" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Group Name (label)</Label>
-                <Input name="groupEntity" placeholder="Group username or link" required />
+                <Label>{t.groupNameLabel}</Label>
+                <Input name="groupEntity" placeholder={t.groupNamePlaceholder} required />
               </div>
               {uploadStatus && (
-                <div className={`text-sm ${uploadStatus.includes("success") ? "text-green-400" : "text-destructive"}`}>
+                <div className={`text-sm ${uploadStatus.includes(t.uploadSuccess) ? "text-green-400" : "text-destructive"}`}>
                   {uploadStatus}
                 </div>
               )}
               <Button type="submit" disabled={uploading}>
-                {uploading ? "Uploading..." : "Upload"}
+                {uploading ? t.uploading : t.upload}
               </Button>
             </div>
           </form>
@@ -444,8 +537,8 @@ export default function AutoChatPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              Live Logs
-              {runningJobId && <Badge variant="default">Running</Badge>}
+              {t.liveLogs}
+              {runningJobId && <Badge variant="default">{t.running}</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -475,7 +568,7 @@ export default function AutoChatPage() {
       {/* Job History */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Job History</h2>
+          <h2 className="text-lg font-semibold">{t.jobHistory}</h2>
           {chatJobs.length > 0 && (
             <Button
               variant="ghost"
@@ -484,12 +577,12 @@ export default function AutoChatPage() {
               onClick={clearAllJobs}
               disabled={clearingAll}
             >
-              {clearingAll ? "Clearing..." : "Clear All"}
+              {clearingAll ? t.clearing : t.clearAll}
             </Button>
           )}
         </div>
         {chatJobs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No jobs yet</p>
+          <p className="text-sm text-muted-foreground">{t.noJobsYet}</p>
         ) : (
           <div className="space-y-2">
             {chatJobs.map((job) => (
@@ -511,7 +604,7 @@ export default function AutoChatPage() {
                     </Badge>
                     <span className="text-sm">{job.groupEntity}</span>
                     <span className="text-xs text-muted-foreground">
-                      {job.sentCount} sent
+                      {job.sentCount} {t.sent}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -526,7 +619,7 @@ export default function AutoChatPage() {
                         onClick={() => deleteJob(job.id)}
                         disabled={deletingJobId === job.id}
                       >
-                        {deletingJobId === job.id ? "..." : "Delete"}
+                        {deletingJobId === job.id ? "..." : t.delete}
                       </Button>
                     )}
                   </div>

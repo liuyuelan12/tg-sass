@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { getCsrfToken } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -10,6 +10,74 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 import { signIn as nextAuthSignIn } from "next-auth/react";
+import { useLanguage } from "@/lib/useLanguage";
+
+const translations = {
+  en: {
+    loading: "Loading...",
+    adminLogin: "Admin Login",
+    adminDesc: "System administrator access",
+    invalidCreds: "Invalid credentials",
+    loginFailed: "Login failed",
+    email: "Email",
+    password: "Password",
+    signingIn: "Signing in...",
+    signIn: "Sign In",
+    backToUser: "Back to user login",
+    signInUser: "Sign In",
+    signInDescPassword: "Sign in with your email and password",
+    signInDescOtp: "Sign in with a one-time code",
+    invalidPasswordLogin: "Invalid email or password. If you registered with OTP and haven't set a password, please use OTP login.",
+    noAccount: "No account found with this email. Please register first.",
+    failedToSend: "Failed to send code",
+    invalidOtp: "Invalid or expired code",
+    verificationFailed: "Verification failed",
+    emailPlaceholder: "you@example.com",
+    passwordPlaceholder: "Your password",
+    useOtpInstead: "Use OTP code instead",
+    sending: "Sending...",
+    sendCode: "Send Login Code",
+    usePasswordInstead: "Use password instead",
+    sentCodeTo: "We sent a code to",
+    verificationCode: "Verification Code",
+    verifying: "Verifying...",
+    useDifferentEmail: "Use different email",
+    noAccountPrompt: "Don't have an account?",
+    signUp: "Sign up",
+  },
+  zh: {
+    loading: "加载中...",
+    adminLogin: "管理员登录",
+    adminDesc: "系统管理员访问权限",
+    invalidCreds: "凭据无效",
+    loginFailed: "登录失败",
+    email: "邮箱",
+    password: "密码",
+    signingIn: "登录中...",
+    signIn: "登录",
+    backToUser: "返回用户登录",
+    signInUser: "登 录",
+    signInDescPassword: "使用邮箱和密码登录",
+    signInDescOtp: "使用一次性验证码登录",
+    invalidPasswordLogin: "邮箱或密码无效。如果您使用验证码注册且尚未设置密码，请使用验证码登录。",
+    noAccount: "未找到该邮箱对应的账号，请先注册。",
+    failedToSend: "验证码发送失败",
+    invalidOtp: "验证码无效或已过期",
+    verificationFailed: "验证失败",
+    emailPlaceholder: "you@example.com",
+    passwordPlaceholder: "您的密码",
+    useOtpInstead: "使用验证码登录",
+    sending: "发送中...",
+    sendCode: "发送登录验证码",
+    usePasswordInstead: "使用密码登录",
+    sentCodeTo: "我们已将验证码发送至",
+    verificationCode: "验证码",
+    verifying: "验证中...",
+    useDifferentEmail: "使用其他邮箱",
+    noAccountPrompt: "还没有账号？",
+    signUp: "立即注册",
+  }
+};
 
 async function credentialsSignIn(
   provider: string,
@@ -30,8 +98,11 @@ async function credentialsSignIn(
 }
 
 export default function LoginPage() {
+  const { lang } = useLanguage();
+  const t = translations[lang];
+
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><p className="text-muted-foreground">{t.loading}</p></div>}>
       <LoginForm />
     </Suspense>
   );
@@ -40,6 +111,8 @@ export default function LoginPage() {
 function LoginForm() {
   const searchParams = useSearchParams();
   const isAdmin = searchParams.get("admin") === "true";
+  const { lang } = useLanguage();
+  const t = translations[lang];
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -57,10 +130,10 @@ function LoginForm() {
       if (result.ok) {
         window.location.href = "/admin/dashboard";
       } else {
-        setError("Invalid credentials");
+        setError(t.invalidCreds);
       }
     } catch {
-      setError("Login failed");
+      setError(t.loginFailed);
     } finally {
       setLoading(false);
     }
@@ -74,10 +147,10 @@ function LoginForm() {
       if (result.ok) {
         window.location.href = "/session-gen";
       } else {
-        setError("Invalid email or password. If you registered with OTP and haven't set a password, please use OTP login.");
+        setError(t.invalidPasswordLogin);
       }
     } catch {
-      setError("Login failed");
+      setError(t.loginFailed);
     } finally {
       setLoading(false);
     }
@@ -94,7 +167,7 @@ function LoginForm() {
       });
       const checkData = await checkRes.json();
       if (!checkData.exists) {
-        setError("No account found with this email. Please register first.");
+        setError(t.noAccount);
         setLoading(false);
         return;
       }
@@ -108,7 +181,7 @@ function LoginForm() {
       if (!res.ok) throw new Error(data.error);
       setStep("otp");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send code");
+      setError(err instanceof Error ? err.message : t.failedToSend);
     } finally {
       setLoading(false);
     }
@@ -125,22 +198,27 @@ function LoginForm() {
       if (result.ok) {
         window.location.href = "/session-gen";
       } else {
-        setError("Invalid or expired code");
+        setError(t.invalidOtp);
       }
     } catch {
-      setError("Verification failed");
+      setError(t.verificationFailed);
     } finally {
       setLoading(false);
     }
   }
+
+  // Clear errors when switching modes
+  useEffect(() => {
+    setError("");
+  }, [loginMode, step]);
 
   if (isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Admin Login</CardTitle>
-            <CardDescription>System administrator access</CardDescription>
+            <CardTitle className="text-2xl">{t.adminLogin}</CardTitle>
+            <CardDescription>{t.adminDesc}</CardDescription>
           </CardHeader>
           <CardContent>
             {error && (
@@ -150,7 +228,7 @@ function LoginForm() {
             )}
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t.email}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -159,7 +237,7 @@ function LoginForm() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t.password}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -173,12 +251,12 @@ function LoginForm() {
                 onClick={handleAdminLogin}
                 disabled={loading || !email || !password}
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? t.signingIn : t.signIn}
               </Button>
             </div>
             <div className="mt-6 text-center">
               <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground">
-                Back to user login
+                {t.backToUser}
               </Link>
             </div>
           </CardContent>
@@ -191,11 +269,11 @@ function LoginForm() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Sign In</CardTitle>
+          <CardTitle className="text-2xl">{t.signInUser}</CardTitle>
           <CardDescription>
             {loginMode === "password"
-              ? "Sign in with your email and password"
-              : "Sign in with a one-time code"}
+              ? t.signInDescPassword
+              : t.signInDescOtp}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -208,21 +286,21 @@ function LoginForm() {
           {loginMode === "password" ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t.email}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t.emailPlaceholder}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t.password}</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Your password"
+                  placeholder={t.passwordPlaceholder}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handlePasswordLogin()}
@@ -233,7 +311,7 @@ function LoginForm() {
                 onClick={handlePasswordLogin}
                 disabled={loading || !email || !password}
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? t.signingIn : t.signInUser}
               </Button>
               <button
                 onClick={() => {
@@ -242,17 +320,17 @@ function LoginForm() {
                 }}
                 className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
               >
-                Use OTP code instead
+                {t.useOtpInstead}
               </button>
             </div>
           ) : step === "email" ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t.email}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t.emailPlaceholder}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
@@ -263,7 +341,7 @@ function LoginForm() {
                 onClick={handleSendOtp}
                 disabled={loading || !email}
               >
-                {loading ? "Sending..." : "Send Login Code"}
+                {loading ? t.sending : t.sendCode}
               </Button>
               <button
                 onClick={() => {
@@ -272,16 +350,16 @@ function LoginForm() {
                 }}
                 className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
               >
-                Use password instead
+                {t.usePasswordInstead}
               </button>
             </div>
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                We sent a code to <strong>{email}</strong>
+                {t.sentCodeTo} <strong>{email}</strong>
               </p>
               <div className="space-y-2">
-                <Label htmlFor="code">Verification Code</Label>
+                <Label htmlFor="code">{t.verificationCode}</Label>
                 <Input
                   id="code"
                   type="text"
@@ -298,7 +376,7 @@ function LoginForm() {
                 onClick={handleVerifyOtp}
                 disabled={loading || code.length < 6}
               >
-                {loading ? "Verifying..." : "Sign In"}
+                {loading ? t.verifying : t.signInUser}
               </Button>
               <Button
                 variant="ghost"
@@ -308,15 +386,15 @@ function LoginForm() {
                   setCode("");
                 }}
               >
-                Use different email
+                {t.useDifferentEmail}
               </Button>
             </div>
           )}
 
           <div className="mt-6 text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
+            {t.noAccountPrompt}{" "}
             <Link href="/register" className="text-primary hover:underline">
-              Sign up
+              {t.signUp}
             </Link>
           </div>
         </CardContent>
@@ -324,3 +402,4 @@ function LoginForm() {
     </div>
   );
 }
+

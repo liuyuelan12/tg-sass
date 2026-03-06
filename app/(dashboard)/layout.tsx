@@ -7,22 +7,79 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Globe } from "lucide-react";
+import { useLanguage } from "@/lib/useLanguage";
 
-const navItems = [
-  { href: "/session-gen", label: "Sessions", icon: "\u{1F510}" },
-  { href: "/profile-modifier", label: "Profile", icon: "\u{1F464}" },
-  { href: "/scrape", label: "Scrape", icon: "\u{1F577}\u{FE0F}" },
-  { href: "/auto-chat", label: "Auto Chat", icon: "\u{1F916}" },
-  { href: "#pricing", label: "Pricing", icon: "\u{1F4B0}" },
+const translations = {
+  en: {
+    title: "TG-SaaS",
+    navSessions: "Sessions",
+    navProfile: "Profile",
+    navScrape: "Scrape",
+    navAutoChat: "Auto Chat (AI)",
+    navPricing: "Pricing",
+    loading: "Loading...",
+    trial: "Trial",
+    pro: "Pro",
+    signOut: "Sign Out",
+    trialExpired: "Trial Expired",
+    upgradePlan: "Upgrade Your Plan",
+    trialEndedDesc: "Your free trial has ended. Choose a plan to continue using TG-SaaS.",
+    unlockFeaturesDesc: "Unlock more features by upgrading your plan.",
+    close: "Close",
+    mostPopular: "Most Popular",
+    paymentTitle: "Payment (USDT)",
+    contactSupport: "Contact Support on Telegram",
+    planBasic: "Basic",
+    planBasicDesc: "Full Telegram automation toolkit",
+    planPro: "Pro",
+    planProDesc: "AI-powered automation + Discord",
+    planEnterprise: "Enterprise",
+    planEnterpriseDesc: "Full suite for serious operators",
+  },
+  zh: {
+    title: "TG-SaaS",
+    navSessions: "账号管理",
+    navProfile: "资料修改",
+    navScrape: "群组采集",
+    navAutoChat: "AI 自动群发",
+    navPricing: "价格方案",
+    loading: "加载中...",
+    trial: "加载中...",
+    pro: "专业版",
+    signOut: "退出登录",
+    trialExpired: "试用已过期",
+    upgradePlan: "升级您的方案",
+    trialEndedDesc: "您的免费试用已结束。选择一个方案以继续使用 TG-SaaS。",
+    unlockFeaturesDesc: "升级方案以解锁更多功能。",
+    close: "关闭",
+    mostPopular: "最受欢迎",
+    paymentTitle: "支付方式 (USDT)",
+    contactSupport: "通过 Telegram 联系客服",
+    planBasic: "基础版",
+    planBasicDesc: "完整的 Telegram 自动化工具包",
+    planPro: "专业版",
+    planProDesc: "AI 驱动的自动化 + Discord 支持",
+    planEnterprise: "企业版",
+    planEnterpriseDesc: "为专业运营团队打造的完整套件",
+  }
+};
+
+const getNavItems = (t: any) => [
+  { href: "/session-gen", label: t.navSessions, icon: "🔐" },
+  { href: "/profile-modifier", label: t.navProfile, icon: "👤" },
+  { href: "/scrape", label: t.navScrape, icon: "🕷️" },
+  { href: "/auto-chat", label: t.navAutoChat, icon: "🤖" },
+  { href: "#pricing", label: t.navPricing, icon: "💰" },
 ];
 
-const plans = [
+const getPlansList = (lang: string, t: any) => [
   {
-    name: "Basic",
+    name: t.planBasic,
     price: "$200",
     highlight: false,
-    description: "Full Telegram automation toolkit",
-    features: [
+    description: t.planBasicDesc,
+    features: lang === "en" ? [
       "Unlimited Telegram session generation & management",
       "Batch profile modifier (name, username, avatar)",
       "Group scraper with Forum/Topic support",
@@ -31,14 +88,23 @@ const plans = [
       "Cloudflare R2 encrypted storage",
       "Real-time progress monitoring",
       "Flood-wait auto-retry protection",
+    ] : [
+      "无限制生成和管理 Telegram 会话",
+      "批量资料修改器（名称、用户名、头像）",
+      "支持论坛/话题的群组采集器",
+      "带会话轮换和智能调度的自动群发",
+      "媒体下载与上传（CSV + ZIP）",
+      "Cloudflare R2 加密存储",
+      "实时进度监控",
+      "频繁请求（Flood-wait）自动重试保护",
     ],
   },
   {
-    name: "Pro",
+    name: t.planPro,
     price: "$300",
     highlight: true,
-    description: "AI-powered automation + Discord",
-    features: [
+    description: t.planProDesc,
+    features: lang === "en" ? [
       "Everything in Basic",
       "AI-assisted message rewriting & content generation",
       "Smart reply generation based on context",
@@ -46,14 +112,22 @@ const plans = [
       "Cross-platform content syndication (TG -> Discord)",
       "Advanced analytics dashboard",
       "Priority support via Telegram",
+    ] : [
+      "包含基础版所有功能",
+      "AI 辅助消息重写与内容生成",
+      "基于上下文的智能回复生成",
+      "Discord 自动发布与定时发送",
+      "跨平台内容同步（TG -> Discord）",
+      "高级数据分析仪表盘",
+      "通过 Telegram 优先获得支持",
     ],
   },
   {
-    name: "Enterprise",
+    name: t.planEnterprise,
     price: "$500",
     highlight: false,
-    description: "Full suite for serious operators",
-    features: [
+    description: t.planEnterpriseDesc,
+    features: lang === "en" ? [
       "Everything in Pro",
       "Twitter/X real-time keyword monitoring & alerts",
       "Alpha token discovery engine",
@@ -61,6 +135,14 @@ const plans = [
       "Custom webhook integrations",
       "Dedicated infrastructure & uptime SLA",
       "1-on-1 onboarding & strategy consultation",
+    ] : [
+      "包含专业版所有功能",
+      "Twitter/X 实时关键字监控和警报",
+      "Alpha 代币发现引擎",
+      "支持可配置策略的多账户狙击",
+      "自定义 Webhook 集成",
+      "专属基础设施及运行时间 SLA 保障",
+      "1 对 1 入门培训及战略咨询",
     ],
   },
 ];
@@ -85,6 +167,7 @@ export default function DashboardLayout({
   const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
   const [timeLeft, setTimeLeft] = useState("");
   const [showPricing, setShowPricing] = useState(false);
+  const { lang, toggleLanguage, mounted } = useLanguage();
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -129,24 +212,35 @@ export default function DashboardLayout({
     return () => clearInterval(interval);
   }, [userStatus]);
 
-  if (status === "loading") {
+  if (status === "loading" || !mounted) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">{mounted ? translations[lang].loading : "Loading..."}</div>
       </div>
     );
   }
 
   if (!session) return null;
 
+  const t = translations[lang];
+  const navItems = getNavItems(t);
+  const plans = getPlansList(lang, t);
+
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
       <aside className="w-56 border-r border-border/40 flex flex-col">
         <div className="p-4 border-b border-border/40">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            TG-SaaS
-          </Link>
+          <div className="flex items-center gap-2">
+            <img
+              src="/logo.png"
+              alt="Logo"
+              className="w-8 h-8 rounded-lg shadow-sm object-cover"
+            />
+            <Link href="/" className="text-lg font-bold tracking-tight">
+              {t.title}
+            </Link>
+          </div>
         </div>
 
         <nav className="flex-1 p-3 space-y-1">
@@ -167,11 +261,10 @@ export default function DashboardLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
-                  pathname === item.href
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${pathname === item.href
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                }`}
+                  }`}
               >
                 <span>{item.icon}</span>
                 {item.label}
@@ -181,15 +274,22 @@ export default function DashboardLayout({
         </nav>
 
         <div className="p-4 border-t border-border/40 space-y-3">
+          <button
+            onClick={toggleLanguage}
+            className="flex items-center gap-2 px-3 py-2 w-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+          >
+            <Globe className="w-4 h-4" />
+            {lang === "en" ? "中文" : "English"}
+          </button>
           {userStatus && !userStatus.isPaid && timeLeft && (
-            <div className="text-xs text-muted-foreground">
-              Trial: <Badge variant="outline" className="ml-1">{timeLeft}</Badge>
+            <div className="text-xs text-muted-foreground px-2">
+              {t.trial}: <Badge variant="outline" className="ml-1">{timeLeft}</Badge>
             </div>
           )}
           {userStatus?.isPaid && (
-            <Badge variant="default" className="text-xs">Pro</Badge>
+            <Badge variant="default" className="text-xs mx-2">{t.pro}</Badge>
           )}
-          <div className="text-xs text-muted-foreground truncate">
+          <div className="text-xs text-muted-foreground truncate px-2">
             {session.user?.email}
           </div>
           <Button
@@ -198,7 +298,7 @@ export default function DashboardLayout({
             className="w-full"
             onClick={() => signOut({ callbackUrl: "/" })}
           >
-            Sign Out
+            {t.signOut}
           </Button>
         </div>
       </aside>
@@ -213,12 +313,10 @@ export default function DashboardLayout({
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold">
-                  {timeLeft === "Expired" ? "Trial Expired" : "Upgrade Your Plan"}
+                  {timeLeft === "Expired" ? t.trialExpired : t.upgradePlan}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {timeLeft === "Expired"
-                    ? "Your free trial has ended. Choose a plan to continue using TG-SaaS."
-                    : "Unlock more features by upgrading your plan."}
+                  {timeLeft === "Expired" ? t.trialEndedDesc : t.unlockFeaturesDesc}
                 </p>
               </div>
               {timeLeft !== "Expired" && (
@@ -227,7 +325,7 @@ export default function DashboardLayout({
                   size="sm"
                   onClick={() => setShowPricing(false)}
                 >
-                  Close
+                  {t.close}
                 </Button>
               )}
             </div>
@@ -236,15 +334,14 @@ export default function DashboardLayout({
               {plans.map((plan) => (
                 <Card
                   key={plan.name}
-                  className={`relative flex flex-col ${
-                    plan.highlight
+                  className={`relative flex flex-col ${plan.highlight
                       ? "border-primary shadow-lg shadow-primary/10"
                       : "border-border/40"
-                  }`}
+                    }`}
                 >
                   {plan.highlight && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
-                      Most Popular
+                      {t.mostPopular}
                     </div>
                   )}
                   <CardHeader className="text-center pb-2">
@@ -285,7 +382,7 @@ export default function DashboardLayout({
 
             {/* Payment info */}
             <div className="bg-card/50 border border-border/40 rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-semibold">Payment (USDT)</h3>
+              <h3 className="text-sm font-semibold">{t.paymentTitle}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
                   <div className="text-muted-foreground mb-1">BEP20 (BSC)</div>
@@ -307,7 +404,7 @@ export default function DashboardLayout({
                   rel="noopener noreferrer"
                 >
                   <Button variant="outline" size="sm">
-                    Contact Support on Telegram
+                    {t.contactSupport}
                   </Button>
                 </a>
               </div>
