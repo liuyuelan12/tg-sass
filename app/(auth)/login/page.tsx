@@ -9,31 +9,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
+import { signIn as nextAuthSignIn } from "next-auth/react";
+
 async function credentialsSignIn(
   provider: string,
   credentials: Record<string, string>
 ): Promise<{ ok: boolean; error?: string }> {
-  const csrfToken = await getCsrfToken();
-
-  const params = new URLSearchParams({
-    ...credentials,
-    csrfToken: csrfToken || "",
-  });
-
-  const res = await fetch(`/api/auth/callback/${provider}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-    redirect: "follow",
-    credentials: "include",
-  });
-
-  // After following the 302 redirect, check the final URL for error parameter
-  if (res.url?.includes("error")) {
-    return { ok: false, error: "CredentialsSignin" };
+  try {
+    const res = await nextAuthSignIn(provider, {
+      ...credentials,
+      redirect: false,
+    });
+    if (res?.error) {
+      return { ok: false, error: res.error };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: "Network error" };
   }
-
-  return { ok: true };
 }
 
 export default function LoginPage() {

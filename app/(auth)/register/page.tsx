@@ -8,24 +8,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
+import { signIn as nextAuthSignIn } from "next-auth/react";
+
 async function credentialsSignIn(
   provider: string,
   credentials: Record<string, string>
 ): Promise<{ ok: boolean }> {
-  const csrfToken = await getCsrfToken();
-  const params = new URLSearchParams({
-    ...credentials,
-    csrfToken: csrfToken || "",
-  });
-  const res = await fetch(`/api/auth/callback/${provider}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-    redirect: "follow",
-    credentials: "include",
-  });
-  // After following the 302 redirect, check the final URL for error parameter
-  return { ok: !res.url?.includes("error") };
+  try {
+    const res = await nextAuthSignIn(provider, {
+      ...credentials,
+      redirect: false,
+    });
+    return { ok: !res?.error };
+  } catch (err) {
+    return { ok: false };
+  }
 }
 
 export default function RegisterPage() {
