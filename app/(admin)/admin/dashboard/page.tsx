@@ -31,7 +31,15 @@ const translations = {
     markPaid: "Mark Paid",
     enable: "Enable",
     disable: "Disable",
-    na: "N/A"
+    na: "N/A",
+    createUser: "Create User",
+    email: "Email",
+    password: "Password",
+    durationHours: "Duration (hours)",
+    creating: "Creating...",
+    create: "Create",
+    userCreated: "User created!",
+    createFailed: "Failed to create user"
   },
   zh: {
     title: "大师兄控制台",
@@ -55,7 +63,15 @@ const translations = {
     markPaid: "标记付费",
     enable: "启用",
     disable: "禁用",
-    na: "无"
+    na: "无",
+    createUser: "创建用户",
+    email: "邮箱",
+    password: "密码",
+    durationHours: "使用时长（小时）",
+    creating: "创建中...",
+    create: "创建",
+    userCreated: "用户创建成功！",
+    createFailed: "创建用户失败"
   }
 };
 
@@ -78,6 +94,11 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [extendHours, setExtendHours] = useState<Record<string, string>>({});
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newHours, setNewHours] = useState("72");
+  const [creating, setCreating] = useState(false);
+  const [createMsg, setCreateMsg] = useState("");
   const { lang, mounted } = useLanguage();
 
   useEffect(() => {
@@ -90,6 +111,37 @@ export default function AdminDashboard() {
       if (res.ok) setUsers(await res.json());
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function createUser() {
+    if (!newEmail || !newPassword) return;
+    setCreating(true);
+    setCreateMsg("");
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: newEmail,
+          password: newPassword,
+          hours: newHours,
+        }),
+      });
+      if (res.ok) {
+        setCreateMsg(t.userCreated);
+        setNewEmail("");
+        setNewPassword("");
+        setNewHours("72");
+        fetchUsers();
+      } else {
+        const data = await res.json();
+        setCreateMsg(`${t.createFailed}: ${data.error}`);
+      }
+    } catch {
+      setCreateMsg(t.createFailed);
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -139,6 +191,49 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Create User */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.createUser}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-3">
+              <div className="space-y-1 flex-1">
+                <label className="text-xs text-muted-foreground">{t.email}</label>
+                <Input
+                  placeholder="user@example.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1 flex-1">
+                <label className="text-xs text-muted-foreground">{t.password}</label>
+                <Input
+                  type="password"
+                  placeholder="••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1 w-32">
+                <label className="text-xs text-muted-foreground">{t.durationHours}</label>
+                <Input
+                  value={newHours}
+                  onChange={(e) => setNewHours(e.target.value)}
+                />
+              </div>
+              <Button onClick={createUser} disabled={creating || !newEmail || !newPassword}>
+                {creating ? t.creating : t.create}
+              </Button>
+            </div>
+            {createMsg && (
+              <p className={`text-sm mt-2 ${createMsg.includes(t.userCreated) ? "text-green-400" : "text-destructive"}`}>
+                {createMsg}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
