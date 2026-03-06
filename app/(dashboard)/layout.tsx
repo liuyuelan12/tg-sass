@@ -12,7 +12,7 @@ import { useLanguage } from "@/lib/useLanguage";
 
 const translations = {
   en: {
-    title: "TG-SaaS",
+    title: "TG Master",
     navSessions: "Sessions",
     navProfile: "Profile",
     navScrape: "Scrape",
@@ -24,7 +24,7 @@ const translations = {
     signOut: "Sign Out",
     trialExpired: "Trial Expired",
     upgradePlan: "Upgrade Your Plan",
-    trialEndedDesc: "Your free trial has ended. Choose a plan to continue using TG-SaaS.",
+    trialEndedDesc: "Your free trial has ended. Choose a plan to continue using TG Master.",
     unlockFeaturesDesc: "Unlock more features by upgrading your plan.",
     close: "Close",
     mostPopular: "Most Popular",
