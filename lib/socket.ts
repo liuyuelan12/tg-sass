@@ -48,6 +48,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
           headers: socket.handshake.headers,
         } as Parameters<typeof getToken>[0]["req"],
         secret: process.env.AUTH_SECRET,
+        secureCookie: process.env.NODE_ENV === "production",
       });
 
       if (!token?.id) {
