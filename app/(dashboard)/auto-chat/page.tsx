@@ -77,7 +77,7 @@ const translations = {
     uploadSourceDesc: "上传修改过的话术 CSV（及可选的媒体文件 ZIP）作为数据源。",
     csvFile: "CSV 文件",
     mediaZip: "媒体文件 ZIP (可选)",
-    groupNameLabel: "群组名称 (标签)",
+    groupNameLabel: "消息源名字",
     groupNamePlaceholder: "群组用户名或链接",
     uploading: "上传中...",
     upload: "上传",

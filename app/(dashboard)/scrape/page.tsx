@@ -71,7 +71,7 @@ const translations = {
     uploadSourceDesc: "上传 CSV（及可选的媒体 ZIP）作为自动群聊的数据源。",
     csvFile: "CSV 文件",
     mediaZip: "媒体 ZIP (可选)",
-    targetGroup: "目标群组",
+    targetGroup: "消息源名称",
     targetGroupPlaceholder: "群组用户名或链接",
     uploading: "上传中...",
     upload: "上传",
