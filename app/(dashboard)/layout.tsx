@@ -38,7 +38,7 @@ const translations = {
     planEnterpriseDesc: "Full suite for serious operators",
   },
   zh: {
-    title: "TG-SaaS",
+    title: "电报大师兄",
     navSessions: "账号管理",
     navProfile: "资料修改",
     navScrape: "群组采集",
@@ -50,7 +50,7 @@ const translations = {
     signOut: "退出登录",
     trialExpired: "试用已过期",
     upgradePlan: "升级您的方案",
-    trialEndedDesc: "您的免费试用已结束。选择一个方案以继续使用 TG-SaaS。",
+    trialEndedDesc: "您的免费试用已结束。选择一个方案以继续使用电报大师兄。",
     unlockFeaturesDesc: "升级方案以解锁更多功能。",
     close: "关闭",
     mostPopular: "最受欢迎",
@@ -262,8 +262,8 @@ export default function DashboardLayout({
                 key={item.href}
                 href={item.href}
                 className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${pathname === item.href
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   }`}
               >
                 <span>{item.icon}</span>
@@ -335,8 +335,8 @@ export default function DashboardLayout({
                 <Card
                   key={plan.name}
                   className={`relative flex flex-col ${plan.highlight
-                      ? "border-primary shadow-lg shadow-primary/10"
-                      : "border-border/40"
+                    ? "border-primary shadow-lg shadow-primary/10"
+                    : "border-border/40"
                     }`}
                 >
                   {plan.highlight && (

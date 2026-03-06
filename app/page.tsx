@@ -10,67 +10,67 @@ import { useLanguage, Language } from "@/lib/useLanguage";
 
 const translations = {
   en: {
-    title: "TG-SaaS",
+    title: "TG Master",
     login: "Login",
     getStarted: "Get Started",
     heroTitle1: "Telegram Automation, ",
-    heroTitleHighlight: "Simplified",
-    heroDesc: "Powered by the latest AI models. Manage sessions, scrape groups, modify profiles, and utilize intelligent context-aware auto-replies — all from one dashboard.",
+    heroTitleHighlight: "Boss Style",
+    heroDesc: "The ultimate power tool for serious Telegram operators. Manage sessions, scrape groups, and deploy AI-driven auto-replies with the wisdom of the 'Big Brother'.",
     startFreeTrial: "Start Free Trial",
     signIn: "Sign In",
     trialNote: "3-hour free trial. No credit card required.",
-    featSession: "Session Manager",
-    featSessionDesc: "Generate and manage Telegram sessions with multi-step authentication flow.",
-    featProfile: "Profile Modifier",
-    featProfileDesc: "Batch update names, usernames, and avatars across your Telegram accounts.",
-    featScraper: "Group Scraper",
-    featScraperDesc: "Extract messages and media from Telegram groups with topic support.",
-    featAuto: "Auto Chat (AI Powered)",
-    featAutoDesc: "Automated group messaging with context-aware smart replies, session rotation, and intelligent scheduling.",
-    pricingTitle: "Pricing Plans",
-    pricingDesc: "Choose the plan that fits your operation. All plans include encrypted storage and user isolation.",
-    planBasic: "Basic",
-    planBasicDesc: "Full Telegram automation toolkit",
-    planPro: "Pro",
-    planProDesc: "AI-powered automation + Discord",
-    planEnterprise: "Enterprise",
-    planEnterpriseDesc: "Full suite for serious operators",
-    mostPopular: "Most Popular",
-    paymentTitle: "Payment",
-    paymentDesc: "We accept USDT payments. After payment, contact support with your transaction hash to activate your plan.",
-    contactSupport: "Contact Support on Telegram",
+    featSession: "Master Session",
+    featSessionDesc: "Legendary session management with pro-level security and flow.",
+    featProfile: "Visual Master",
+    featProfileDesc: "Instantly dominate your presence with batch name and avatar updates.",
+    featScraper: "Alpha Scraper",
+    featScraperDesc: "Steal the alpha with intelligent group and forum data extraction.",
+    featAuto: "Master Chat (AI Powered)",
+    featAutoDesc: "God-mode automated messaging with context-aware replies and rotation.",
+    pricingTitle: "The Master's Plans",
+    pricingDesc: "Level up your operation with professional grade infrastructure.",
+    planBasic: "Junior Brother",
+    planBasicDesc: "Essential tools for any operator",
+    planPro: "Big Brother",
+    planProDesc: "AI-powered dominance + Discord",
+    planEnterprise: "Master One",
+    planEnterpriseDesc: "The full arsenal for high-tier teams",
+    mostPopular: "Best Choice",
+    paymentTitle: "Direct Transfer",
+    paymentDesc: "USDT only. Contact the Big Brother after payment for access.",
+    contactSupport: "Talk to Big Brother",
     admin: "Admin"
   },
   zh: {
-    title: "TG-SaaS",
+    title: "电报大师兄",
     login: "登录",
-    getStarted: "开始使用",
-    heroTitle1: "Telegram 自动化，",
-    heroTitleHighlight: "从此简单",
-    heroDesc: "集成最新 AI 模型赋能。管理账号、采集群组、修改资料，并利用智能上下文感知进行自动回复 —— 在一个控制台中完成所有操作。",
+    getStarted: "即刻起航",
+    heroTitle1: "大师兄带你，",
+    heroTitleHighlight: "制霸电报",
+    heroDesc: "集成顶级 AI 模型，账号管理、群组采集、资料修改，更有上帝视角的自动回复。电报营销，就找大师兄。",
     startFreeTrial: "免费试用",
-    signIn: "登录",
-    trialNote: "3小时免费试用，无需信用卡。",
-    featSession: "账号管理",
-    featSessionDesc: "生成和管理 Telegram 账号 Session，支持多步身份验证流程。",
-    featProfile: "资料修改",
-    featProfileDesc: "批量修改所有 Telegram 账号的名字、用户名和头像。",
-    featScraper: "群组采集",
-    featScraperDesc: "从 Telegram 群组中提取消息和媒体文件，支持话题（Topic）。",
-    featAuto: "AI 自动群发",
-    featAutoDesc: "AI 驱动的自动化群发，支持基于上下文的智能回复、账号轮换和定时调度。",
-    pricingTitle: "价格方案",
-    pricingDesc: "选择适合您的运营方案。所有方案均提供加密存储和用户隔离。",
-    planBasic: "基础版",
-    planBasicDesc: "完整的 Telegram 自动化工具包",
-    planPro: "专业版",
-    planProDesc: "AI 驱动的自动化 + Discord 支持",
-    planEnterprise: "企业版",
-    planEnterpriseDesc: "为专业运营团队打造的完整套件",
-    mostPopular: "最受欢迎",
-    paymentTitle: "支付方式",
-    paymentDesc: "我们接受 USDT 支付。付款后，请通过 Telegram 联系客服并提供交易哈希以激活您的方案。",
-    contactSupport: "通过 Telegram 联系客服",
+    signIn: "登录账号",
+    trialNote: "3小时免费试用，不留痕迹。",
+    featSession: "账号管家",
+    featSessionDesc: "像大师兄一样管理成百上千个 Session，流程稳如泰山。",
+    featProfile: "千变万化",
+    featProfileDesc: "批量修改名字和头像，瞬间千变万化，谁也不认识你。",
+    featScraper: "火眼金睛",
+    featScraperDesc: "精准采集群组消息，话题论坛一览无余，尽在掌握。",
+    featAuto: "大师兄代聊 (AI)",
+    featAutoDesc: "全自动 AI 代聊，上下文对答如流，账号轮换永不掉线。",
+    pricingTitle: "大师兄的价码",
+    pricingDesc: "选择你的段位。每一枚币都花在刀刃上。",
+    planBasic: "师弟版",
+    planBasicDesc: "全套基础自动化套件",
+    planPro: "大师兄版",
+    planProDesc: "AI 赋能 + Discord 联动",
+    planEnterprise: "师傅版",
+    planEnterpriseDesc: "为大型工作室打造的终极军械库",
+    mostPopular: "强力推荐",
+    paymentTitle: "上供方式 (USDT)",
+    paymentDesc: "接受 USDT。付完后找大师兄报备，即刻发货。",
+    contactSupport: "联系大师兄",
     admin: "管理员"
   }
 };
@@ -205,10 +205,10 @@ export default function LandingPage() {
       {/* Absolute Background Image */}
       <div
         className="fixed inset-0 z-[-2] w-full h-full bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/bg.png')" }}
+        style={{ backgroundImage: "url('/hero-monkey.png')" }}
       />
       {/* Overlay to ensure dark mode contrast and glassmorphism backdrop */}
-      <div className="fixed inset-0 z-[-1] w-full h-full bg-black/60 backdrop-blur-[20px]" />
+      <div className="fixed inset-0 z-[-1] w-full h-full bg-black/40 backdrop-blur-[2px]" />
 
       {/* Header */}
       <motion.header
@@ -264,7 +264,7 @@ export default function LandingPage() {
         >
           <motion.div variants={fadeIn} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-4 shadow-xl">
             <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-sm font-medium text-white/80">TG-SaaS Beta Available</span>
+            <span className="text-sm font-medium text-white/80">电报大师兄 Beta 已就绪</span>
           </motion.div>
 
           <motion.h2 variants={fadeIn} className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1]">

@@ -34,7 +34,7 @@ const translations = {
     na: "N/A"
   },
   zh: {
-    title: "管理员控制台",
+    title: "大师兄控制台",
     signOut: "退出登录",
     totalUsers: "总用户数",
     paidUsers: "已付费用户",
