@@ -49,10 +49,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               email,
               trialExpiresAt: new Date(
                 Date.now() +
-                  (parseInt(process.env.TRIAL_DURATION_HOURS || "3") || 3) *
-                    60 *
-                    60 *
-                    1000
+                (parseInt(process.env.TRIAL_DURATION_HOURS || "3") || 3) *
+                60 *
+                60 *
+                1000
               ),
             },
           });
@@ -162,4 +162,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     strategy: "jwt",
   },
   secret: process.env.AUTH_SECRET,
+  trustHost: true,
 });
