@@ -47,17 +47,17 @@ export async function POST(req: NextRequest) {
     }
 
     const { data, error } = await getResend().emails.send({
-      from: process.env.OTP_FROM_EMAIL || "TG-SaaS <noreply@example.com>",
+      from: process.env.OTP_FROM_EMAIL || "电报大师兄 <noreply@example.com>",
       to: normalizedEmail,
-      subject: "Your TG-SaaS Login Code",
+      subject: "您的电报大师兄登录验证码",
       html: `
         <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #3b82f6;">TG-SaaS</h2>
-          <p>Your verification code is:</p>
+          <h2 style="color: #3b82f6;">电报大师兄</h2>
+          <p>您的验证码是：</p>
           <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: #f1f5f9; border-radius: 8px; margin: 16px 0;">
             ${code}
           </div>
-          <p style="color: #64748b; font-size: 14px;">This code expires in 10 minutes.</p>
+          <p style="color: #64748b; font-size: 14px;">此验证码 10 分钟内有效。</p>
         </div>
       `,
     });

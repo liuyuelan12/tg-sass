@@ -1,6 +1,6 @@
-# 🚀 Telegram 自动化 SaaS 系统开发指南
+# 🚀 电报大师兄 (Telegram Master) SaaS 系统开发指南
 
-你好，Claude Code。如果你阅读到了这个文件，用户当前正在请求你将之前编写的 5 个独立的 Telegram TypeScript 脚本，重构成一个**完整的、带有用户隔离的 SaaS 平台**。
+你好，Claude Code。如果你阅读到了这个文件，用户当前正在请求你将之前编写的 5 个独立的 Telegram TypeScript 脚本，重构成一个**完整的、带有用户隔离的电报大师兄 SaaS 平台**。
 
 项目将使用 **Next.js** 构建，最终目标部署在 **Railway** 等支持长驻进程的容器云上。要求代码结构清晰，严格贯彻用户数据隔离，界面采用现代化设计风格。
 
