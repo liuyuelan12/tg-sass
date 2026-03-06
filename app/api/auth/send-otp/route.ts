@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Dev mode: always print OTP to console
-    if (process.env.NODE_ENV !== "production") {
+    // Print OTP to console for debugging
+    {
       console.log(`\n========== OTP ==========`);
       console.log(`  Email: ${normalizedEmail}`);
       console.log(`  Code:  ${code}`);
