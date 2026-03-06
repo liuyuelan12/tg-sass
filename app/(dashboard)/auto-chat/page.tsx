@@ -227,6 +227,37 @@ export default function AutoChatPage() {
     }
   }
 
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [clearingAll, setClearingAll] = useState(false);
+
+  async function deleteJob(jobId: string) {
+    setDeletingJobId(jobId);
+    try {
+      const res = await fetch(`/api/telegram/auto-chat/${jobId}`, { method: "DELETE" });
+      if (res.ok) {
+        setChatJobs((prev) => prev.filter((j) => j.id !== jobId));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setDeletingJobId(null);
+    }
+  }
+
+  async function clearAllJobs() {
+    setClearingAll(true);
+    try {
+      const res = await fetch("/api/telegram/auto-chat", { method: "DELETE" });
+      if (res.ok) {
+        setChatJobs((prev) => prev.filter((j) => j.status === "RUNNING"));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setClearingAll(false);
+    }
+  }
+
   const activeSessionCount = sessions.filter((s) => s.isActive).length;
 
   return (
@@ -443,7 +474,20 @@ export default function AutoChatPage() {
 
       {/* Job History */}
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Job History</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Job History</h2>
+          {chatJobs.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={clearAllJobs}
+              disabled={clearingAll}
+            >
+              {clearingAll ? "Clearing..." : "Clear All"}
+            </Button>
+          )}
+        </div>
         {chatJobs.length === 0 ? (
           <p className="text-sm text-muted-foreground">No jobs yet</p>
         ) : (
@@ -470,9 +514,22 @@ export default function AutoChatPage() {
                       {job.sentCount} sent
                     </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(job.createdAt).toLocaleDateString()}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(job.createdAt).toLocaleDateString()}
+                    </span>
+                    {job.status !== "RUNNING" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                        onClick={() => deleteJob(job.id)}
+                        disabled={deletingJobId === job.id}
+                      >
+                        {deletingJobId === job.id ? "..." : "Delete"}
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}

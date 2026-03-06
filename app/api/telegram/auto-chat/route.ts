@@ -16,6 +16,29 @@ export async function GET() {
   return NextResponse.json(jobs);
 }
 
+export async function DELETE() {
+  try {
+    const guard = await requireActiveUser();
+    if (!guard.ok) return guard.response;
+
+    // Delete all non-running jobs for this user
+    const deleted = await prisma.chatJob.deleteMany({
+      where: {
+        userId: guard.user.id,
+        status: { not: "RUNNING" },
+      },
+    });
+
+    return NextResponse.json({ deleted: deleted.count });
+  } catch (err) {
+    console.error("[auto-chat DELETE all] error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Delete failed" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   const guard = await requireActiveUser();
   if (!guard.ok) return guard.response;
