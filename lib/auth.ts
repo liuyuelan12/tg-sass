@@ -123,14 +123,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const email = credentials?.email as string;
         const password = credentials?.password as string;
-        if (!email || !password) return null;
+        if (!email || !password) {
+          console.log("[admin-auth] missing email or password");
+          return null;
+        }
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || user.role !== "ADMIN" || !user.passwordHash) return null;
+        if (!user) {
+          console.log("[admin-auth] user not found:", email);
+          return null;
+        }
+        if (user.role !== "ADMIN") {
+          console.log("[admin-auth] user is not admin:", email, user.role);
+          return null;
+        }
+        if (!user.passwordHash) {
+          console.log("[admin-auth] user has no password:", email);
+          return null;
+        }
 
         const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) return null;
+        if (!valid) {
+          console.log("[admin-auth] invalid password for:", email);
+          return null;
+        }
 
+        console.log("[admin-auth] success:", email);
         return {
           id: user.id,
           email: user.email,
