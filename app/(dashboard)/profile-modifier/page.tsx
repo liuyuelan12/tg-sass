@@ -35,7 +35,7 @@ const translations = {
     pageTitle: "修改资料",
     yourSessions: "你的 TG 账号",
     loading: "加载中...",
-    noSessions: "暂无账号。请前往“账号管理”获取新账号。",
+    noSessions: "暂无账号。请前往“账号管理”生成Session。",
     active: "正常",
     dead: "失效",
     edit: "编辑",
@@ -310,8 +310,8 @@ export default function ProfileModifierPage() {
             {editState.message && (
               <div
                 className={`text-sm ${editState.message.includes("update") || editState.message.includes("更新成功")
-                    ? "text-green-400"
-                    : "text-destructive"
+                  ? "text-green-400"
+                  : "text-destructive"
                   }`}
               >
                 {editState.message}

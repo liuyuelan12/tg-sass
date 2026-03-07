@@ -41,7 +41,7 @@ const translations = {
     title: "电报大师兄",
     navSessions: "账号管理",
     navProfile: "资料修改",
-    navScrape: "群组采集",
+    navScrape: "扒取消息",
     navAutoChat: "AI 自动群发",
     navPricing: "价格方案",
     loading: "加载中...",
@@ -91,7 +91,7 @@ const getPlansList = (lang: string, t: any) => [
     ] : [
       "无限制生成和管理 Telegram 会话",
       "批量资料修改器（名称、用户名、头像）",
-      "支持论坛/话题的群组采集器",
+      "支持论坛/话题的扒取消息",
       "带会话轮换和智能调度的自动群发",
       "媒体下载与上传（CSV + ZIP）",
       "Cloudflare R2 加密存储",

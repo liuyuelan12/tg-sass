@@ -47,7 +47,7 @@ const translations = {
     getStarted: "即刻起航",
     heroTitle1: "大师兄带你，",
     heroTitleHighlight: "制霸电报",
-    heroDesc: "集成顶级 AI 模型，账号管理、群组采集、资料修改，更有上帝视角的自动回复。电报营销，就找大师兄。",
+    heroDesc: "集成顶级 AI 模型，账号管理、扒取消息、资料修改，更有上帝视角的自动回复。电报营销，就找大师兄。",
     startFreeTrial: "免费试用",
     signIn: "登录账号",
     trialNote: "3小时免费试用，不留痕迹。",
@@ -117,7 +117,7 @@ const getPlansList = (lang: Language, t: any) => [
     ] : [
       "无限制生成和管理 Telegram 会话",
       "批量资料修改器（名称、用户名、头像）",
-      "支持论坛/话题的群组采集器",
+      "支持论坛/话题的扒取消息",
       "带会话轮换和智能调度的自动群发",
       "媒体下载与上传（CSV + ZIP）",
       "Cloudflare R2 加密存储",

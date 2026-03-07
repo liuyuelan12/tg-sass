@@ -42,7 +42,7 @@ const translations = {
   },
   zh: {
     pageTitle: "账号管理",
-    newSessionBtn: "+ 获取新账号",
+    newSessionBtn: "+ 生成Session",
     generateSession: "获取新 TG 账号",
     phonePlaceholder: "手机号 (例如: +86...)",
     codePlaceholder: "验证码",
@@ -54,7 +54,7 @@ const translations = {
     deleteInvalid: "一键删除失效账号",
     deleting: "删除中...",
     loading: "加载中...",
-    noSessions: "暂无账号。请点击“获取新账号”开始。",
+    noSessions: "暂无账号。请点击“生成Session”开始。",
     active: "正常",
     dead: "失效",
     check: "检测",

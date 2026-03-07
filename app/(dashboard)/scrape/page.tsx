@@ -48,7 +48,7 @@ const translations = {
     progressMsgs: "{f} / {t} messages",
   },
   zh: {
-    pageTitle: "群组采集器",
+    pageTitle: "扒取消息",
     newScrapeJob: "新建采集任务",
     session: "TG 账号",
     chooseSession: "选择账号...",
