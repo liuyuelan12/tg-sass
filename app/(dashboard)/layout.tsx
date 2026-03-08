@@ -185,12 +185,22 @@ export default function DashboardLayout({
           if (data.trialExpired && !data.isPaid && data.role !== "ADMIN") {
             setShowPricing(true);
           }
+          // If user is paid or admin, always dismiss the pricing modal
+          if (data.isPaid || data.role === "ADMIN") {
+            setShowPricing(false);
+            setTimeLeft("");
+          }
         }
       } catch {
         // ignore
       }
     }
     if (session) fetchStatus();
+    // Re-check every 30 seconds in case admin updates user status
+    if (session) {
+      const poll = setInterval(fetchStatus, 30000);
+      return () => clearInterval(poll);
+    }
   }, [session]);
 
   useEffect(() => {
@@ -319,7 +329,7 @@ export default function DashboardLayout({
                   {timeLeft === "Expired" ? t.trialEndedDesc : t.unlockFeaturesDesc}
                 </p>
               </div>
-              {timeLeft !== "Expired" && (
+              {(timeLeft !== "Expired" || userStatus?.isPaid || userStatus?.role === "ADMIN") && (
                 <Button
                   variant="ghost"
                   size="sm"
