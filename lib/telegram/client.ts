@@ -10,7 +10,7 @@ export function createTelegramClient(sessionString = ""): TelegramClient {
   }
 
   return new TelegramClient(new StringSession(sessionString), apiId, apiHash, {
-    connectionRetries: 5,
+    connectionRetries: 1,
     useWSS: true,
   });
 }

@@ -3,7 +3,9 @@ import { prisma } from "@/lib/db";
 import { requireActiveUser } from "@/lib/guard";
 import { createTelegramClient } from "@/lib/telegram/client";
 import { decrypt } from "@/lib/crypto";
-import { withFloodWait } from "@/lib/telegram/flood-wait";
+import { withTimeout } from "@/lib/telegram/flood-wait";
+
+const PER_SESSION_TIMEOUT_MS = 8000;
 
 export async function POST(
   _req: NextRequest,
@@ -22,11 +24,13 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  let client: ReturnType<typeof createTelegramClient> | null = null;
   try {
     const sessionStr = decrypt(tgSession.sessionString);
-    const client = createTelegramClient(sessionStr);
-    await withFloodWait(() => client.connect());
-    const me = await client.getMe();
+    client = createTelegramClient(sessionStr);
+
+    await withTimeout(client.connect(), PER_SESSION_TIMEOUT_MS, "connect");
+    const me = await withTimeout(client.getMe(), PER_SESSION_TIMEOUT_MS, "getMe");
 
     const name = [me.firstName, me.lastName].filter(Boolean).join(" ");
     const label = `${name}${me.username ? ` @${me.username}` : ""}`;
@@ -35,12 +39,6 @@ export async function POST(
       where: { id },
       data: { isActive: true, label },
     });
-
-    try {
-      await client.disconnect();
-    } catch {
-      // ignore
-    }
 
     return NextResponse.json({ active: true, label });
   } catch (err) {
@@ -53,5 +51,13 @@ export async function POST(
       active: false,
       error: err instanceof Error ? err.message : String(err),
     });
+  } finally {
+    if (client) {
+      try {
+        await withTimeout(client.disconnect(), 3000, "disconnect");
+      } catch {
+        // ignore
+      }
+    }
   }
 }
