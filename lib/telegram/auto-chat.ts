@@ -1,10 +1,14 @@
 import * as path from "path";
 import { TelegramClient, Api } from "telegram";
 import { CustomFile } from "telegram/client/uploads";
-import { createTelegramClient } from "./client";
 import { withFloodWait, sleep } from "./flood-wait";
-import { decrypt } from "@/lib/crypto";
 import { downloadFromR2, listR2Objects } from "@/lib/r2";
+import {
+  connectSessions,
+  ensureGroupMembership,
+  disconnectSessions,
+  type ConnectedSession,
+} from "./group-join";
 
 const REACTIONS = [
   "\u{1F44D}",
@@ -121,6 +125,7 @@ export interface ChatJobLog {
 
 export class AutoChatRunner {
   private aborted = false;
+  private connected: ConnectedSession[] = [];
   private clients: TelegramClient[] = [];
   private clientNames: string[] = [];
   private onLog?: (log: ChatJobLog) => void;
@@ -158,24 +163,15 @@ export class AutoChatRunner {
     }
 
     // Connect all sessions
-    for (const encSession of this.config.encryptedSessions) {
-      try {
-        const sessionStr = decrypt(encSession);
-        const client = createTelegramClient(sessionStr);
-        await withFloodWait(() => client.connect());
-        const me = await client.getMe();
-        const name = me.firstName || "Unknown";
-        this.clients.push(client);
-        this.clientNames.push(name);
-        this.log("success", `Connected: ${name} @${me.username || "n/a"}`);
-      } catch (err) {
-        this.log(
-          "warn",
-          `Session failed: ${err instanceof Error ? err.message : String(err)}`
-        );
-      }
-      await sleep(1000);
-    }
+    const inputs = this.config.encryptedSessions.map((encryptedSession, i) => ({
+      id: String(i),
+      encryptedSession,
+    }));
+    this.connected = await connectSessions(inputs, (type, message) =>
+      this.log(type, message)
+    );
+    this.clients = this.connected.map((s) => s.client);
+    this.clientNames = this.connected.map((s) => s.name);
 
     if (this.clients.length === 0) {
       this.log("error", "No active sessions available");
@@ -183,33 +179,9 @@ export class AutoChatRunner {
     }
 
     // Check group membership
-    for (let i = 0; i < this.clients.length; i++) {
-      try {
-        const dialogs = await this.clients[i].getDialogs({});
-        const inGroup = dialogs.some((d) => {
-          const peer = d.entity;
-          return (
-            peer &&
-            "username" in peer &&
-            peer.username?.toLowerCase() === entity.toLowerCase()
-          );
-        });
-        if (!inGroup) {
-          this.log("info", `${this.clientNames[i]} joining group...`);
-          await withFloodWait(async () => {
-            await this.clients[i].invoke(
-              new Api.channels.JoinChannel({ channel: entity })
-            );
-          });
-          await sleep(2000);
-        }
-      } catch (err) {
-        this.log(
-          "warn",
-          `${this.clientNames[i]} join failed: ${err instanceof Error ? err.message : String(err)}`
-        );
-      }
-    }
+    await ensureGroupMembership(this.connected, entity, (type, message) =>
+      this.log(type, message)
+    );
 
     // Send messages
     let globalCount = 0;
@@ -351,13 +323,7 @@ export class AutoChatRunner {
   }
 
   async disconnect() {
-    for (const client of this.clients) {
-      try {
-        await client.disconnect();
-      } catch {
-        // ignore
-      }
-    }
+    await disconnectSessions(this.connected);
   }
 }
 

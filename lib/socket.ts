@@ -1,14 +1,17 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { getToken } from "next-auth/jwt";
 import { generateSession } from "./telegram/session-gen";
-import { encrypt } from "./crypto";
+import { encrypt, decrypt } from "./crypto";
 import { prisma } from "./db";
 import { AutoChatRunner, type ChatJobConfig } from "./telegram/auto-chat";
 import { ScrapeRunner } from "./telegram/scraper";
+import { AIChatRunner, type AIChatJobConfig } from "./telegram/ai-chat";
+import type { PersonaAnalysis } from "./ai/personas";
 
 // In-memory store of active jobs
 const activeChatJobs = new Map<string, AutoChatRunner>();
 const activeScrapeJobs = new Map<string, ScrapeRunner>();
+const activeAIChatJobs = new Map<string, AIChatRunner>();
 
 export function getActiveChatJob(jobId: string): AutoChatRunner | undefined {
   return activeChatJobs.get(jobId);
@@ -16,6 +19,10 @@ export function getActiveChatJob(jobId: string): AutoChatRunner | undefined {
 
 export function getActiveScrapeJob(jobId: string): ScrapeRunner | undefined {
   return activeScrapeJobs.get(jobId);
+}
+
+export function getActiveAIChatJob(jobId: string): AIChatRunner | undefined {
+  return activeAIChatJobs.get(jobId);
 }
 
 export function registerSocketHandlers(io: SocketIOServer) {
@@ -301,6 +308,190 @@ export function registerSocketHandlers(io: SocketIOServer) {
       if (runner) {
         runner.stop();
         await prisma.chatJob.update({
+          where: { id: data.jobId },
+          data: { status: "STOPPED" },
+        });
+      }
+    });
+
+    // --- AI Chat ---
+    socket.on("aichat:start", async (data: { jobId: string }) => {
+      const { jobId } = data;
+
+      const job = await prisma.aIChatJob.findFirst({
+        where: { id: jobId, userId },
+      });
+      if (!job) {
+        socket.emit("aichat:log", {
+          type: "error",
+          message: "Job not found or access denied",
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      if (activeAIChatJobs.has(jobId)) {
+        socket.emit("aichat:log", {
+          type: "warn",
+          message: "Job is already running",
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      const tgSessions = await prisma.tgSession.findMany({
+        where: { id: { in: job.sessionIds }, userId },
+      });
+      if (tgSessions.length === 0) {
+        socket.emit("aichat:log", {
+          type: "error",
+          message: "No valid sessions found",
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      // Resolve LLM credentials server-side
+      let apiKey: string;
+      let baseUrl: string | undefined;
+      if (job.provider === "GROQ_DEFAULT") {
+        apiKey = process.env.GROQ_API_KEY ?? "";
+        if (!apiKey) {
+          socket.emit("aichat:log", {
+            type: "error",
+            message: "Server GROQ_API_KEY not configured",
+            timestamp: Date.now(),
+          });
+          return;
+        }
+      } else {
+        const key = job.apiKeyId
+          ? await prisma.userApiKey.findFirst({
+              where: { id: job.apiKeyId, userId },
+            })
+          : await prisma.userApiKey.findFirst({
+              where: { userId, provider: job.provider },
+            });
+        if (!key) {
+          socket.emit("aichat:log", {
+            type: "error",
+            message: `No saved API key for provider ${job.provider}`,
+            timestamp: Date.now(),
+          });
+          return;
+        }
+        try {
+          apiKey = decrypt(key.encryptedKey);
+        } catch {
+          socket.emit("aichat:log", {
+            type: "error",
+            message: "Failed to decrypt saved API key",
+            timestamp: Date.now(),
+          });
+          return;
+        }
+        baseUrl = key.baseUrl ?? undefined;
+      }
+
+      const scrapeJob = await prisma.scrapeJob.findFirst({
+        where: { id: job.scrapeJobId, userId },
+      });
+      if (!scrapeJob?.csvR2Key) {
+        socket.emit("aichat:log", {
+          type: "error",
+          message: "Source ScrapeJob CSV not found",
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      const cachedPersonas =
+        job.personasJson && typeof job.personasJson === "object"
+          ? (job.personasJson as unknown as PersonaAnalysis)
+          : null;
+      const cachedSessionPersonaMap =
+        job.sessionPersonaMap && typeof job.sessionPersonaMap === "object"
+          ? (job.sessionPersonaMap as Record<string, number>)
+          : null;
+
+      const config: AIChatJobConfig = {
+        jobId: job.id,
+        encryptedSessions: tgSessions.map((s) => ({
+          id: s.id,
+          sessionString: s.sessionString,
+        })),
+        groupEntity: job.groupEntity,
+        csvR2Key: scrapeJob.csvR2Key,
+        llm: {
+          provider: job.provider,
+          apiKey,
+          baseUrl,
+          model: job.model,
+        },
+        intervalMin: job.intervalMin,
+        intervalMax: job.intervalMax,
+        sendPct: job.sendPct,
+        replyPct: job.replyPct,
+        reactPct: job.reactPct,
+        contextSize: job.contextSize,
+        maxMessages: job.maxMessages,
+        shouldLoop: job.shouldLoop,
+        dryRun: job.dryRun,
+        cachedPersonas,
+        cachedSessionPersonaMap,
+      };
+
+      const runner = new AIChatRunner(config, (log) => {
+        socket.emit("aichat:log", log);
+      });
+      activeAIChatJobs.set(jobId, runner);
+
+      try {
+        await prisma.aIChatJob.update({
+          where: { id: jobId },
+          data: { status: "RUNNING", error: null },
+        });
+
+        const result = await runner.start();
+
+        await prisma.aIChatJob.update({
+          where: { id: jobId },
+          data: {
+            status: "COMPLETED",
+            sentCount: result.sentCount,
+            tokensIn: result.tokensIn,
+            tokensOut: result.tokensOut,
+          },
+        });
+      } catch (err) {
+        await prisma.aIChatJob.update({
+          where: { id: jobId },
+          data: {
+            status: "FAILED",
+            error: err instanceof Error ? err.message : String(err),
+          },
+        });
+        socket.emit("aichat:log", {
+          type: "error",
+          message: `Job failed: ${err instanceof Error ? err.message : String(err)}`,
+          timestamp: Date.now(),
+        });
+      } finally {
+        await runner.disconnect();
+        activeAIChatJobs.delete(jobId);
+      }
+    });
+
+    socket.on("aichat:stop", async (data: { jobId: string }) => {
+      const job = await prisma.aIChatJob.findFirst({
+        where: { id: data.jobId, userId },
+      });
+      if (!job) return;
+
+      const runner = activeAIChatJobs.get(data.jobId);
+      if (runner) {
+        runner.stop();
+        await prisma.aIChatJob.update({
           where: { id: data.jobId },
           data: { status: "STOPPED" },
         });

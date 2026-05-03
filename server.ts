@@ -24,9 +24,13 @@ async function cleanupOrphanedJobs() {
       where: { status: "RUNNING" },
       data: { status: "FAILED", error: "Server restarted — job interrupted" },
     });
-    if (staleChats.count > 0 || staleScrapes.count > 0) {
+    const staleAIChats = await prisma.aIChatJob.updateMany({
+      where: { status: "RUNNING" },
+      data: { status: "FAILED", error: "Server restarted — job interrupted" },
+    });
+    if (staleChats.count > 0 || staleScrapes.count > 0 || staleAIChats.count > 0) {
       console.log(
-        `Cleaned up orphaned jobs: ${staleChats.count} chat, ${staleScrapes.count} scrape`
+        `Cleaned up orphaned jobs: ${staleChats.count} chat, ${staleScrapes.count} scrape, ${staleAIChats.count} ai-chat`
       );
     }
   } finally {

@@ -17,6 +17,7 @@ const translations = {
     navProfile: "Profile",
     navScrape: "Scrape",
     navAutoChat: "Auto Chat (AI)",
+    navAIChat: "AI Group Chat",
     navPricing: "Pricing",
     loading: "Loading...",
     trial: "Trial",
@@ -43,6 +44,7 @@ const translations = {
     navProfile: "资料修改",
     navScrape: "扒取消息",
     navAutoChat: "AI 自动群发",
+    navAIChat: "AI 群聊",
     navPricing: "价格方案",
     loading: "加载中...",
     trial: "加载中...",
@@ -70,6 +72,7 @@ const getNavItems = (t: any) => [
   { href: "/profile-modifier", label: t.navProfile, icon: "👤" },
   { href: "/scrape", label: t.navScrape, icon: "🕷️" },
   { href: "/auto-chat", label: t.navAutoChat, icon: "🤖" },
+  { href: "/ai-chat", label: t.navAIChat, icon: "🧠" },
   { href: "#pricing", label: t.navPricing, icon: "💰" },
 ];
 

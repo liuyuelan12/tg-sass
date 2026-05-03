@@ -20,6 +20,14 @@ enum JobStatus {
   STOPPED
 }
 
+enum LlmProvider {
+  GROQ_DEFAULT
+  GROQ_BYOK
+  OPENAI_BYOK
+  ANTHROPIC_BYOK
+  OPENAI_COMPAT_BYOK
+}
+
 model User {
   id             String      @id @default(cuid())
   email          String      @unique
@@ -33,6 +41,8 @@ model User {
   tgSessions     TgSession[]
   scrapeJobs     ScrapeJob[]
   chatJobs       ChatJob[]
+  aiChatJobs     AIChatJob[]
+  apiKeys        UserApiKey[]
 }
 
 model OtpCode {
@@ -95,6 +105,54 @@ model ChatJob {
   sentCount     Int       @default(0)
   error         String?
   createdAt     DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model UserApiKey {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     LlmProvider
+  encryptedKey String      @db.Text
+  baseUrl      String?
+  model        String?
+  label        String?
+  createdAt    DateTime    @default(now())
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model AIChatJob {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupEntity       String
+  topicId           Int?
+  scrapeJobId       String
+  sessionIds        String[]
+  provider          LlmProvider @default(GROQ_DEFAULT)
+  apiKeyId          String?
+  model             String      @default("llama-3.3-70b-versatile")
+  detectedLanguage  String?
+  personasJson      Json?
+  sessionPersonaMap Json?
+  intervalMin       Int         @default(8)
+  intervalMax       Int         @default(20)
+  sendPct           Int         @default(60)
+  replyPct          Int         @default(30)
+  reactPct          Int         @default(10)
+  contextSize       Int         @default(10)
+  maxMessages       Int         @default(200)
+  shouldLoop        Boolean     @default(false)
+  dryRun            Boolean     @default(false)
+  status            JobStatus   @default(PENDING)
+  sentCount         Int         @default(0)
+  tokensIn          Int         @default(0)
+  tokensOut         Int         @default(0)
+  error             String?
+  createdAt         DateTime    @default(now())
 
   @@index([userId])
 }
