@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "prisma db push --skip-generate && next build",
+    "build": "next build",
     "start": "tsx server.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
