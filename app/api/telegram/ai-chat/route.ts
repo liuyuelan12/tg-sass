@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
     maxMessages = 200,
     shouldLoop = false,
     dryRun = false,
+    priorityReplyStrangers = false,
   } = body;
 
   if (!Array.isArray(sessionIds) || sessionIds.length === 0 || !scrapeJobId || !targetGroup) {
@@ -191,6 +192,7 @@ export async function POST(req: NextRequest) {
       maxMessages,
       shouldLoop,
       dryRun,
+      priorityReplyStrangers,
       status: "PENDING",
     },
   });

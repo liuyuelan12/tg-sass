@@ -46,6 +46,8 @@ const translations = {
     maxMessages: "Max messages",
     shouldLoop: "Loop after maxMessages",
     dryRun: "Dry-run (don't actually send)",
+    priorityReplyStrangers: "Priority-reply when strangers speak",
+    priorityReplyStrangersHelp: "When ON: if a non-own user posts an unanswered message, the next turn force-replies to them, then resumes normal session-to-session chat.",
     previewPersonas: "Preview Personas",
     previewing: "Analyzing CSV...",
     detectedLanguage: "Language",
@@ -106,6 +108,8 @@ const translations = {
     maxMessages: "最大消息数",
     shouldLoop: "达到上限后循环",
     dryRun: "演练模式（不真发）",
+    priorityReplyStrangers: "陌生人优先回复",
+    priorityReplyStrangersHelp: "开启后：群里有非自己 session 的用户发言且尚未被回复时，下一回合强制回复他/她，回完后恢复 session 之间互聊。",
     previewPersonas: "预览 Persona",
     previewing: "正在分析 CSV...",
     detectedLanguage: "语言",
@@ -219,6 +223,7 @@ export default function AIChatPage() {
   const [maxMessages, setMaxMessages] = useState("200");
   const [shouldLoop, setShouldLoop] = useState(false);
   const [dryRun, setDryRun] = useState(true);
+  const [priorityReplyStrangers, setPriorityReplyStrangers] = useState(false);
   const [showByok, setShowByok] = useState(false);
   const [byokProvider, setByokProvider] = useState<Provider>("GROQ_BYOK");
   const [byokKey, setByokKey] = useState("");
@@ -378,6 +383,7 @@ export default function AIChatPage() {
           maxMessages: parseInt(maxMessages),
           shouldLoop,
           dryRun,
+          priorityReplyStrangers,
         }),
       });
       if (!res.ok) {
@@ -655,6 +661,20 @@ export default function AIChatPage() {
                 className="rounded"
               />
               {t.dryRun}
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={priorityReplyStrangers}
+                  onChange={(e) => setPriorityReplyStrangers(e.target.checked)}
+                  className="rounded"
+                />
+                {t.priorityReplyStrangers}
+              </span>
+              <span className="text-xs text-muted-foreground pl-6">
+                {t.priorityReplyStrangersHelp}
+              </span>
             </label>
           </div>
 

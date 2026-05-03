@@ -50,6 +50,14 @@ function pickAction(
   return "react";
 }
 
+function getSenderUserId(m: Api.Message): string | null {
+  const fromId = m.fromId;
+  if (fromId && "userId" in fromId && fromId.userId) {
+    return fromId.userId.toString();
+  }
+  return null;
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const out = arr.slice();
   for (let i = out.length - 1; i > 0; i--) {
@@ -79,6 +87,7 @@ export interface AIChatJobConfig {
   maxMessages: number;
   shouldLoop: boolean;
   dryRun?: boolean;
+  priorityReplyStrangers?: boolean;
   cachedPersonas?: PersonaAnalysis | null;
   cachedSessionPersonaMap?: Record<string, number> | null;
 }
@@ -100,6 +109,8 @@ const PERSIST_EVERY_N_MESSAGES = 5;
 export class AIChatRunner {
   private aborted = false;
   private connected: ConnectedSession[] = [];
+  private ownUserIds: Set<string> = new Set();
+  private repliedStrangerMsgIds: Set<number> = new Set();
   private personaPerSession: Map<string, Persona> = new Map();
   private bannedSessionIds: Set<string> = new Set();
   private analysis: PersonaAnalysis | null = null;
@@ -168,6 +179,9 @@ export class AIChatRunner {
       this.log("error", "No active sessions could connect");
       return this.result();
     }
+    this.ownUserIds = new Set(
+      this.connected.map((s) => s.userId).filter((id) => id.length > 0)
+    );
     if (this.aborted) return this.result();
 
     await ensureGroupMembership(this.connected, entity, (t, m) =>
@@ -269,21 +283,42 @@ export class AIChatRunner {
   private async executeTurn(
     session: ConnectedSession,
     persona: Persona,
-    action: "send" | "reply" | "react",
+    originalAction: "send" | "reply" | "react",
     entity: string,
     topicId: number | null
   ): Promise<void> {
     const client = session.client;
 
+    // Always fetch recent first — used for stranger detection, react targets,
+    // reply targets, and history context.
+    const fetchLimit = Math.max(this.config.contextSize, 20);
+    const recent = await withFloodWait(() =>
+      client.getMessages(entity, { limit: fetchLimit })
+    );
+    const recentMsgs = recent.filter(
+      (m): m is Api.Message => m instanceof Api.Message
+    );
+
+    // Stranger priority: if toggle is on and an unanswered stranger spoke,
+    // override action to "reply" and pin the target.
+    let action = originalAction;
+    let strangerTarget: Api.Message | null = null;
+    if (this.config.priorityReplyStrangers) {
+      strangerTarget = this.findUnansweredStranger(recentMsgs);
+      if (strangerTarget) {
+        action = "reply";
+        this.log(
+          "info",
+          `Stranger msg#${strangerTarget.id} unanswered — prioritizing reply`
+        );
+      }
+    }
+
     // React doesn't need LLM
     if (action === "react") {
-      const recent = await withFloodWait(() =>
-        client.getMessages(entity, { limit: 20 })
-      );
-      const candidates = recent.filter((m) => m instanceof Api.Message);
-      if (candidates.length === 0) return;
+      if (recentMsgs.length === 0) return;
       const target =
-        candidates[Math.floor(Math.random() * candidates.length)];
+        recentMsgs[Math.floor(Math.random() * recentMsgs.length)];
       const emoji = REACTIONS[Math.floor(Math.random() * REACTIONS.length)];
       const peer = await withFloodWait(() => client.getInputEntity(entity));
       if (this.config.dryRun) {
@@ -306,36 +341,37 @@ export class AIChatRunner {
       return;
     }
 
-    // Fetch context
-    const recent = await withFloodWait(() =>
-      client.getMessages(entity, { limit: this.config.contextSize })
-    );
-    const history = recent
-      .filter((m) => m instanceof Api.Message && (m as Api.Message).message)
-      .reverse()
-      .map((m) => {
-        const msg = m as Api.Message;
-        const author =
-          msg.fromId && "userId" in msg.fromId
-            ? `user_${String(msg.fromId.userId).slice(-4)}`
-            : "user";
-        return `[${author}]: ${msg.message}`;
-      });
+    // Build history for LLM (chronological, oldest first)
+    const historyMsgs = recentMsgs
+      .filter((m) => m.message)
+      .slice(0, this.config.contextSize)
+      .reverse();
+    const history = historyMsgs.map((m) => {
+      const senderId = getSenderUserId(m);
+      const isOwn = senderId && this.ownUserIds.has(senderId);
+      const tag = isOwn
+        ? "self"
+        : senderId
+        ? `user_${senderId.slice(-4)}`
+        : "user";
+      return `[${tag}]: ${m.message}`;
+    });
 
-    const replyTarget =
-      action === "reply" && recent.length > 0
-        ? (recent[0] as Api.Message)
-        : null;
+    // Reply target: stranger override > most recent message > topic root
+    const replyTarget: Api.Message | null =
+      strangerTarget ?? (action === "reply" && recentMsgs.length > 0 ? recentMsgs[0] : null);
 
     const text = await this.generateReply(persona, action, history);
     if (!text) return;
 
     if (this.config.dryRun) {
+      const tag = strangerTarget ? "[DRY][stranger]" : "[DRY]";
       this.log(
         "info",
-        `[DRY] ${session.name} (${persona.name}) ${action}: ${text.slice(0, 100)}`
+        `${tag} ${session.name} (${persona.name}) ${action}: ${text.slice(0, 100)}`
       );
       this.sentCount++;
+      if (strangerTarget) this.repliedStrangerMsgIds.add(strangerTarget.id);
       return;
     }
 
@@ -346,10 +382,41 @@ export class AIChatRunner {
       })
     );
     this.sentCount++;
+    if (strangerTarget) this.repliedStrangerMsgIds.add(strangerTarget.id);
+    const tag = strangerTarget ? `${action}→stranger` : action;
     this.log(
       "success",
-      `${session.name} (${persona.name}) ${action}: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`
+      `${session.name} (${persona.name}) ${tag}: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`
     );
+  }
+
+  private findUnansweredStranger(messages: Api.Message[]): Api.Message | null {
+    if (messages.length === 0) return null;
+
+    // messages are newest-first. Find newest stranger msg with text.
+    let strangerIdx = -1;
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
+      if (!m.message) continue;
+      const senderId = getSenderUserId(m);
+      if (!senderId) continue;
+      if (!this.ownUserIds.has(senderId)) {
+        strangerIdx = i;
+        break;
+      }
+    }
+    if (strangerIdx === -1) return null;
+
+    const strangerMsg = messages[strangerIdx];
+    if (this.repliedStrangerMsgIds.has(strangerMsg.id)) return null;
+
+    // Have any of our sessions spoken since? (newer = smaller index)
+    for (let i = 0; i < strangerIdx; i++) {
+      const senderId = getSenderUserId(messages[i]);
+      if (senderId && this.ownUserIds.has(senderId)) return null;
+    }
+
+    return strangerMsg;
   }
 
   private async generateReply(

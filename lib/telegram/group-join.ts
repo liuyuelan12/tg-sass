@@ -13,6 +13,7 @@ export interface ConnectedSession {
   client: TelegramClient;
   name: string;
   username: string | null;
+  userId: string;
 }
 
 export type GroupJoinLog = (
@@ -36,7 +37,9 @@ export async function connectSessions(
       const username =
         "username" in me && typeof me.username === "string" ? me.username : null;
       const name = firstName || "Unknown";
-      connected.push({ id: input.id, client, name, username });
+      const meId = (me as { id?: { toString: () => string } }).id;
+      const userId = meId ? meId.toString() : "";
+      connected.push({ id: input.id, client, name, username, userId });
       log("success", `Connected: ${name}${username ? ` @${username}` : ""}`);
     } catch (err) {
       log(
