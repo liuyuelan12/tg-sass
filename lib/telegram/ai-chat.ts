@@ -360,6 +360,15 @@ export class AIChatRunner {
     if (!this.analysis) throw new Error("personas not initialized");
     const lang = this.analysis.language;
 
+    const lengthRule =
+      lang === "zh"
+        ? `- 极短：单条消息最多 30 个中文字。绝对不要写多句话或长段落。\n` +
+          `- 像微信群里的真人随手回，不要写文章。\n` +
+          `- 不要总结、不要分析、不要列要点。`
+        : `- VERY SHORT: a single message under 80 characters. NO multi-sentence essays.\n` +
+          `- Like a casual chat user dashing off a quick reply.\n` +
+          `- No summaries, no analysis, no bullet points.`;
+
     const system =
       `You are roleplaying as a Telegram group member with this style:\n` +
       `Name: ${persona.name}\n` +
@@ -367,11 +376,11 @@ export class AIChatRunner {
       `Sample phrases: ${persona.samplePhrases.join(" | ")}\n\n` +
       `Rules:\n` +
       `- Reply ONLY in ${lang === "zh" ? "Chinese (中文)" : "English"}.\n` +
-      `- 1-2 short messages, like a real chat user, not an assistant.\n` +
+      `${lengthRule}\n` +
       `- NEVER mention you are an AI, model, or assistant.\n` +
       `- NEVER use phrases like "as a", "I'm here to help", or quoted preambles.\n` +
       `- No markdown, no bullet points, no headers.\n` +
-      `- Match the energy and length distribution of recent messages.`;
+      `- Match the casual register of the sample phrases above — if they are short and slangy, your reply must be too.`;
 
     const historyText =
       history.length > 0
@@ -395,7 +404,7 @@ export class AIChatRunner {
           system,
           messages: [{ role: "user", content: userPrompt }],
           temperature: 0.85,
-          maxTokens: 200,
+          maxTokens: 80,
           signal: this.abortController.signal,
         });
         this.tokensIn += result.tokensIn;

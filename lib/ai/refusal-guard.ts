@@ -96,13 +96,25 @@ export function cleanAndValidate(
     return { ok: false, reason: "empty after cleaning", cleaned };
   }
 
-  if (cleaned.length > 800) {
-    cleaned = cleaned.slice(0, 800);
+  // Drop multi-line into a single line — chat messages should be one line.
+  const lines = cleaned.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length > 0) {
+    cleaned = lines[0];
   }
 
-  const lines = cleaned.split("\n").map((l) => l.trim()).filter(Boolean);
-  if (lines.length > 1) {
-    cleaned = lines.slice(0, 2).join("\n");
+  // Hard length caps per language. Chat messages should be short — if the
+  // model ignored the prompt and wrote an essay, take only the first sentence.
+  const maxLen = language === "zh" ? 60 : 200;
+  if (cleaned.length > maxLen) {
+    const sentenceEnd =
+      language === "zh"
+        ? cleaned.search(/[。！？\?]/)
+        : cleaned.search(/[.!?]\s/);
+    if (sentenceEnd > 0 && sentenceEnd < maxLen) {
+      cleaned = cleaned.slice(0, sentenceEnd + 1);
+    } else {
+      cleaned = cleaned.slice(0, maxLen);
+    }
   }
 
   if (isRefusal(cleaned, language)) {
