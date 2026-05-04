@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireActiveUser } from "@/lib/guard";
-import { createTelegramClient } from "@/lib/telegram/client";
-import { decrypt } from "@/lib/crypto";
-import { withTimeout } from "@/lib/telegram/flood-wait";
-
-const PER_SESSION_TIMEOUT_MS = 8000;
+import { checkSessionAndUpdate } from "@/lib/telegram/session-status";
 
 export async function POST(
   _req: NextRequest,
@@ -24,40 +20,12 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  let client: ReturnType<typeof createTelegramClient> | null = null;
-  try {
-    const sessionStr = decrypt(tgSession.sessionString);
-    client = createTelegramClient(sessionStr);
-
-    await withTimeout(client.connect(), PER_SESSION_TIMEOUT_MS, "connect");
-    const me = await withTimeout(client.getMe(), PER_SESSION_TIMEOUT_MS, "getMe");
-
-    const name = [me.firstName, me.lastName].filter(Boolean).join(" ");
-    const label = `${name}${me.username ? ` @${me.username}` : ""}`;
-
-    await prisma.tgSession.update({
-      where: { id },
-      data: { isActive: true, label },
-    });
-
-    return NextResponse.json({ active: true, label });
-  } catch (err) {
-    await prisma.tgSession.update({
-      where: { id },
-      data: { isActive: false },
-    });
-
-    return NextResponse.json({
-      active: false,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  } finally {
-    if (client) {
-      try {
-        await withTimeout(client.disconnect(), 3000, "disconnect");
-      } catch {
-        // ignore
-      }
-    }
-  }
+  const result = await checkSessionAndUpdate(tgSession);
+  return NextResponse.json({
+    active: result.active,
+    label: result.label,
+    status: result.status,
+    reason: result.reason,
+    error: result.active ? undefined : result.reason,
+  });
 }
