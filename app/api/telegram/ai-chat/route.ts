@@ -69,7 +69,18 @@ export async function POST(req: NextRequest) {
     shouldLoop = false,
     dryRun = false,
     priorityReplyStrangers = false,
+    bannedKeywords = [],
   } = body;
+
+  const normalizedBanned: string[] = Array.isArray(bannedKeywords)
+    ? Array.from(
+        new Set(
+          bannedKeywords
+            .map((kw: unknown) => (typeof kw === "string" ? kw.trim() : ""))
+            .filter((kw: string) => kw.length > 0 && kw.length <= 64)
+        )
+      ).slice(0, 50)
+    : [];
 
   if (!Array.isArray(sessionIds) || sessionIds.length === 0 || !scrapeJobId || !targetGroup) {
     return NextResponse.json(
@@ -193,6 +204,7 @@ export async function POST(req: NextRequest) {
       shouldLoop,
       dryRun,
       priorityReplyStrangers,
+      bannedKeywords: normalizedBanned,
       status: "PENDING",
     },
   });

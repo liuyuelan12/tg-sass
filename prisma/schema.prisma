@@ -148,6 +148,7 @@ model AIChatJob {
   shouldLoop        Boolean     @default(false)
   dryRun            Boolean     @default(false)
   priorityReplyStrangers Boolean @default(false)
+  bannedKeywords    String[]
   status            JobStatus   @default(PENDING)
   sentCount         Int         @default(0)
   tokensIn          Int         @default(0)

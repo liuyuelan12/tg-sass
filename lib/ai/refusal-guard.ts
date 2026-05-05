@@ -21,6 +21,21 @@ export interface CleanResult {
   cleaned: string;
 }
 
+export interface CleanOpts {
+  bannedKeywords?: string[];
+}
+
+function findBannedHit(text: string, banned?: string[]): string | null {
+  if (!banned || banned.length === 0) return null;
+  const lower = text.toLowerCase();
+  for (const raw of banned) {
+    const k = raw.trim();
+    if (!k) continue;
+    if (lower.includes(k.toLowerCase())) return k;
+  }
+  return null;
+}
+
 function stripMarkdown(text: string): string {
   let out = text.trim();
   out = out.replace(/^```[a-zA-Z]*\s*/, "").replace(/\s*```\s*$/, "");
@@ -83,7 +98,8 @@ function isRefusal(text: string, language: "zh" | "en"): boolean {
 
 export function cleanAndValidate(
   rawContent: string,
-  language: "zh" | "en"
+  language: "zh" | "en",
+  opts: CleanOpts = {}
 ): CleanResult {
   if (!rawContent) {
     return { ok: false, reason: "empty content", cleaned: "" };
@@ -126,6 +142,11 @@ export function cleanAndValidate(
     if (zhRatio < 0.2 && asciiRatio(cleaned) > 0.7) {
       return { ok: false, reason: "language mismatch (expected zh)", cleaned };
     }
+  }
+
+  const bannedHit = findBannedHit(cleaned, opts.bannedKeywords);
+  if (bannedHit) {
+    return { ok: false, reason: `banned keyword: ${bannedHit}`, cleaned };
   }
 
   return { ok: true, cleaned };

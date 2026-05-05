@@ -48,6 +48,9 @@ const translations = {
     dryRun: "Dry-run (don't actually send)",
     priorityReplyStrangers: "Priority-reply when strangers speak",
     priorityReplyStrangersHelp: "When ON: if a non-own user posts an unanswered message, the next turn force-replies to them, then resumes normal session-to-session chat.",
+    bannedKeywords: "Banned keywords",
+    bannedKeywordsHelp: "Comma- or newline-separated. Generated messages containing any of these are discarded and the turn is skipped.",
+    bannedKeywordsPlaceholder: "scam, rugpull\nexit liquidity",
     previewPersonas: "Preview Personas",
     previewing: "Analyzing CSV...",
     detectedLanguage: "Language",
@@ -110,6 +113,9 @@ const translations = {
     dryRun: "演练模式（不真发）",
     priorityReplyStrangers: "陌生人优先回复",
     priorityReplyStrangersHelp: "开启后：群里有非自己 session 的用户发言且尚未被回复时，下一回合强制回复他/她，回完后恢复 session 之间互聊。",
+    bannedKeywords: "禁止关键字",
+    bannedKeywordsHelp: "用逗号或换行分隔。AI 生成的内容只要包含任一关键字就会被丢弃并跳过本轮。",
+    bannedKeywordsPlaceholder: "跑路, 骗子\n暴雷",
     previewPersonas: "预览 Persona",
     previewing: "正在分析 CSV...",
     detectedLanguage: "语言",
@@ -224,6 +230,7 @@ export default function AIChatPage() {
   const [shouldLoop, setShouldLoop] = useState(false);
   const [dryRun, setDryRun] = useState(true);
   const [priorityReplyStrangers, setPriorityReplyStrangers] = useState(false);
+  const [bannedKeywordsText, setBannedKeywordsText] = useState("");
   const [showByok, setShowByok] = useState(false);
   const [byokProvider, setByokProvider] = useState<Provider>("GROQ_BYOK");
   const [byokKey, setByokKey] = useState("");
@@ -384,6 +391,10 @@ export default function AIChatPage() {
           shouldLoop,
           dryRun,
           priorityReplyStrangers,
+          bannedKeywords: bannedKeywordsText
+            .split(/[\n,，]/)
+            .map((s) => s.trim())
+            .filter(Boolean),
         }),
       });
       if (!res.ok) {
@@ -674,6 +685,19 @@ export default function AIChatPage() {
               </span>
               <span className="text-xs text-muted-foreground pl-6">
                 {t.priorityReplyStrangersHelp}
+              </span>
+            </label>
+            <label className="flex flex-col gap-1 text-sm md:col-span-3">
+              <span>{t.bannedKeywords}</span>
+              <textarea
+                value={bannedKeywordsText}
+                onChange={(e) => setBannedKeywordsText(e.target.value)}
+                placeholder={t.bannedKeywordsPlaceholder}
+                rows={3}
+                className="rounded border border-input bg-background px-2 py-1 text-sm font-mono"
+              />
+              <span className="text-xs text-muted-foreground">
+                {t.bannedKeywordsHelp}
               </span>
             </label>
           </div>

@@ -438,6 +438,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
         shouldLoop: job.shouldLoop,
         dryRun: job.dryRun,
         priorityReplyStrangers: job.priorityReplyStrangers,
+        bannedKeywords: job.bannedKeywords,
         cachedPersonas,
         cachedSessionPersonaMap,
       };

@@ -58,6 +58,27 @@ function getSenderUserId(m: Api.Message): string | null {
   return null;
 }
 
+function extractOpening(text: string, lang: "zh" | "en"): string {
+  const trimmed = text.replace(/^[\s，。、！？!,.?\-—…@#"'“”「」]+/, "");
+  if (lang === "zh") return trimmed.slice(0, 4);
+  const m = trimmed.match(/^[A-Za-z']+/);
+  return m ? m[0].toLowerCase() : trimmed.slice(0, 8).toLowerCase();
+}
+
+const MAX_RECENT_OPENINGS = 6;
+const OPENING_REPEAT_THRESHOLD = 2;
+
+function findOverusedOpenings(openings: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const o of openings) {
+    if (!o) continue;
+    counts.set(o, (counts.get(o) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .filter(([, c]) => c >= OPENING_REPEAT_THRESHOLD)
+    .map(([o]) => o);
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const out = arr.slice();
   for (let i = out.length - 1; i > 0; i--) {
@@ -88,6 +109,7 @@ export interface AIChatJobConfig {
   shouldLoop: boolean;
   dryRun?: boolean;
   priorityReplyStrangers?: boolean;
+  bannedKeywords?: string[];
   cachedPersonas?: PersonaAnalysis | null;
   cachedSessionPersonaMap?: Record<string, number> | null;
 }
@@ -121,6 +143,10 @@ export class AIChatRunner {
   private personaPerSession: Map<string, Persona> = new Map();
   private bannedSessionIds: Set<string> = new Set();
   private cooldownUntil: Map<string, number> = new Map();
+  // Track openings of recently sent self-messages so we can warn the LLM not
+  // to repeat the same start word over and over (e.g. screenshots showed
+  // every reply beginning with "截图哥...").
+  private recentSelfOpenings: string[] = [];
   private analysis: PersonaAnalysis | null = null;
   private abortController: AbortController = new AbortController();
   private tokensIn = 0;
@@ -436,6 +462,7 @@ export class AIChatRunner {
       );
       this.sentCount++;
       if (strangerTarget) this.repliedStrangerMsgIds.add(strangerTarget.id);
+      this.recordSelfOpening(text);
       return;
     }
 
@@ -449,11 +476,22 @@ export class AIChatRunner {
     );
     this.sentCount++;
     if (strangerTarget) this.repliedStrangerMsgIds.add(strangerTarget.id);
+    this.recordSelfOpening(text);
     const tag = strangerTarget ? `${action}→stranger` : action;
     this.log(
       "success",
       `${session.name} (${persona.name}) ${tag}: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`
     );
+  }
+
+  private recordSelfOpening(text: string): void {
+    const lang = this.analysis?.language ?? "en";
+    const opening = extractOpening(text, lang);
+    if (!opening) return;
+    this.recentSelfOpenings.push(opening);
+    if (this.recentSelfOpenings.length > MAX_RECENT_OPENINGS) {
+      this.recentSelfOpenings.shift();
+    }
   }
 
   private findUnansweredStranger(messages: Api.Message[]): Api.Message | null {
@@ -502,6 +540,22 @@ export class AIChatRunner {
           `- Like a casual chat user dashing off a quick reply.\n` +
           `- No summaries, no analysis, no bullet points.`;
 
+    const overused = findOverusedOpenings(this.recentSelfOpenings);
+    const overusedRule =
+      overused.length > 0
+        ? lang === "zh"
+          ? `\n- 不要再以这些词开头：${overused.join("、")}。换一个新的开头方式。`
+          : `\n- DO NOT start your message with any of: ${overused.join(", ")}. Use a fresh opening.`
+        : "";
+
+    const banned = (this.config.bannedKeywords ?? []).filter((k) => k.trim().length > 0);
+    const bannedRule =
+      banned.length > 0
+        ? lang === "zh"
+          ? `\n- 严禁出现这些词（任何形式都不行）：${banned.join("、")}。`
+          : `\n- NEVER include these words in any form: ${banned.join(", ")}.`
+        : "";
+
     const system =
       `You are roleplaying as a Telegram group member with this style:\n` +
       `Name: ${persona.name}\n` +
@@ -513,6 +567,7 @@ export class AIChatRunner {
       `- NEVER mention you are an AI, model, or assistant.\n` +
       `- NEVER use phrases like "as a", "I'm here to help", or quoted preambles.\n` +
       `- No markdown, no bullet points, no headers.\n` +
+      `- Vary your opening word — don't echo the same name/topic word every message just because the chat history does.${overusedRule}${bannedRule}\n` +
       `- Match the casual register of the sample phrases above — if they are short and slangy, your reply must be too.`;
 
     const historyText =
@@ -549,7 +604,9 @@ export class AIChatRunner {
             `Primary LLM unavailable; switched to ${result.usedBackup} backup`
           );
         }
-        const validated = cleanAndValidate(result.content, lang);
+        const validated = cleanAndValidate(result.content, lang, {
+          bannedKeywords: this.config.bannedKeywords,
+        });
         if (validated.ok) return validated.cleaned;
         this.log(
           "warn",
