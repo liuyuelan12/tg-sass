@@ -18,10 +18,35 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label = "operati
   });
 }
 
+export class FloodWaitTooLongError extends Error {
+  readonly waitSeconds: number;
+  constructor(waitSeconds: number, originalMessage?: string) {
+    super(
+      `FLOOD_WAIT_TOO_LONG: ${waitSeconds}s exceeds cap${
+        originalMessage ? ` (${originalMessage})` : ""
+      }`
+    );
+    this.name = "FloodWaitTooLongError";
+    this.waitSeconds = waitSeconds;
+  }
+}
+
+export interface WithFloodWaitOpts {
+  maxRetries?: number;
+  /** When defined, FLOOD_WAITs longer than this throw FloodWaitTooLongError instead of silently sleeping. */
+  maxWaitSeconds?: number;
+  /** Called once per FLOOD_WAIT retry (after deciding to wait, before sleeping). */
+  onWait?: (waitSeconds: number, attempt: number) => void;
+}
+
 export async function withFloodWait<T>(
   fn: () => Promise<T>,
-  maxRetries = 3
+  optsOrRetries: WithFloodWaitOpts | number = {}
 ): Promise<T> {
+  const opts: WithFloodWaitOpts =
+    typeof optsOrRetries === "number" ? { maxRetries: optsOrRetries } : optsOrRetries;
+  const maxRetries = opts.maxRetries ?? 3;
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
@@ -37,13 +62,21 @@ export async function withFloodWait<T>(
         error.message?.includes("FLOOD") ||
         error.message?.includes("FloodWaitError");
 
-      if (isFloodWait && attempt < maxRetries) {
+      if (isFloodWait) {
         const waitSeconds = error.seconds || 30;
-        console.warn(
-          `FLOOD_WAIT: waiting ${waitSeconds}s (attempt ${attempt + 1}/${maxRetries})`
-        );
-        await sleep(waitSeconds * 1000);
-        continue;
+
+        if (opts.maxWaitSeconds !== undefined && waitSeconds > opts.maxWaitSeconds) {
+          throw new FloodWaitTooLongError(waitSeconds, error.message ?? error.errorMessage);
+        }
+
+        if (attempt < maxRetries) {
+          opts.onWait?.(waitSeconds, attempt + 1);
+          console.warn(
+            `FLOOD_WAIT: waiting ${waitSeconds}s (attempt ${attempt + 1}/${maxRetries})`
+          );
+          await sleep(waitSeconds * 1000);
+          continue;
+        }
       }
 
       throw err;

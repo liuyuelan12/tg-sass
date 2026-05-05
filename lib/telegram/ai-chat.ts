@@ -1,5 +1,5 @@
 import { Api } from "telegram";
-import { withFloodWait, sleep } from "./flood-wait";
+import { withFloodWait, sleep, FloodWaitTooLongError } from "./flood-wait";
 import { downloadFromR2 } from "@/lib/r2";
 import {
   connectSessions,
@@ -106,6 +106,13 @@ export interface AIChatRunResult {
 
 const PERSIST_EVERY_N_MESSAGES = 5;
 
+// FLOOD_WAITs shorter than this are silently retried; longer ones bail out so
+// the rest of the rotation keeps moving instead of blocking on a single session.
+const FLOOD_WAIT_CAP_SECONDS = 90;
+// When every session is cooling down, the main loop sleeps in chunks of at most
+// this long before re-evaluating, so stop()/maxMessages still take effect promptly.
+const ALL_COOLING_MAX_SLEEP_MS = 5 * 60 * 1000;
+
 export class AIChatRunner {
   private aborted = false;
   private connected: ConnectedSession[] = [];
@@ -113,6 +120,7 @@ export class AIChatRunner {
   private repliedStrangerMsgIds: Set<number> = new Set();
   private personaPerSession: Map<string, Persona> = new Map();
   private bannedSessionIds: Set<string> = new Set();
+  private cooldownUntil: Map<string, number> = new Map();
   private analysis: PersonaAnalysis | null = null;
   private abortController: AbortController = new AbortController();
   private tokensIn = 0;
@@ -130,6 +138,24 @@ export class AIChatRunner {
 
   private log(type: AIChatLog["type"], message: string) {
     this.onLog({ type, message, timestamp: Date.now() });
+  }
+
+  /**
+   * Wraps Telegram calls with a FLOOD_WAIT cap so a single throttled session
+   * can't silently block the whole runner for an hour.
+   */
+  private floodWait<T>(fn: () => Promise<T>, label?: string): Promise<T> {
+    return withFloodWait(fn, {
+      maxWaitSeconds: FLOOD_WAIT_CAP_SECONDS,
+      onWait: (seconds) => {
+        if (seconds >= 30) {
+          this.log(
+            "warn",
+            `FLOOD_WAIT ${seconds}s${label ? ` on ${label}` : ""}; retrying after backoff`
+          );
+        }
+      },
+    });
   }
 
   async start(): Promise<AIChatRunResult> {
@@ -231,12 +257,34 @@ export class AIChatRunner {
           return this.result();
         }
 
-        const eligible = this.connected.filter(
+        const notBanned = this.connected.filter(
           (s) => !this.bannedSessionIds.has(s.id)
         );
-        if (eligible.length === 0) {
+        if (notBanned.length === 0) {
           this.log("error", "All sessions are banned/forbidden in group");
           return this.result();
+        }
+
+        const now = Date.now();
+        const eligible = notBanned.filter((s) => {
+          const cd = this.cooldownUntil.get(s.id);
+          return !cd || cd <= now;
+        });
+
+        if (eligible.length === 0) {
+          // Every non-banned session is FLOOD_WAIT-cooling. Sleep until the
+          // earliest one is ready (capped) so stop()/maxMessages can still fire.
+          const minCooldown = Math.min(
+            ...notBanned.map((s) => this.cooldownUntil.get(s.id) ?? 0)
+          );
+          const waitMs = Math.max(1000, minCooldown - now);
+          const sleepMs = Math.min(waitMs, ALL_COOLING_MAX_SLEEP_MS);
+          this.log(
+            "warn",
+            `All ${notBanned.length} session(s) cooling down (FLOOD_WAIT); sleeping ${Math.ceil(sleepMs / 1000)}s before retry`
+          );
+          await sleep(sleepMs);
+          continue;
         }
 
         const session = eligible[this.sentCount % eligible.length];
@@ -246,19 +294,29 @@ export class AIChatRunner {
         try {
           await this.executeTurn(session, persona, action, entity, topicId);
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (
-            msg.includes("CHAT_WRITE_FORBIDDEN") ||
-            msg.includes("USER_BANNED_IN_CHANNEL") ||
-            msg.includes("CHANNEL_PRIVATE")
-          ) {
-            this.bannedSessionIds.add(session.id);
+          if (err instanceof FloodWaitTooLongError) {
+            const cooldownMs = err.waitSeconds * 1000;
+            this.cooldownUntil.set(session.id, Date.now() + cooldownMs);
+            const mins = Math.ceil(err.waitSeconds / 60);
             this.log(
               "warn",
-              `${session.name} excluded from rotation: ${msg}`
+              `${session.name} hit FLOOD_WAIT ${err.waitSeconds}s; cooling down ~${mins}m, rotating to remaining sessions`
             );
           } else {
-            this.log("error", `${session.name} turn failed: ${msg}`);
+            const msg = err instanceof Error ? err.message : String(err);
+            if (
+              msg.includes("CHAT_WRITE_FORBIDDEN") ||
+              msg.includes("USER_BANNED_IN_CHANNEL") ||
+              msg.includes("CHANNEL_PRIVATE")
+            ) {
+              this.bannedSessionIds.add(session.id);
+              this.log(
+                "warn",
+                `${session.name} excluded from rotation: ${msg}`
+              );
+            } else {
+              this.log("error", `${session.name} turn failed: ${msg}`);
+            }
           }
         }
 
@@ -292,8 +350,9 @@ export class AIChatRunner {
     // Always fetch recent first — used for stranger detection, react targets,
     // reply targets, and history context.
     const fetchLimit = Math.max(this.config.contextSize, 20);
-    const recent = await withFloodWait(() =>
-      client.getMessages(entity, { limit: fetchLimit })
+    const recent = await this.floodWait(
+      () => client.getMessages(entity, { limit: fetchLimit }),
+      `${session.name} getMessages`
     );
     const recentMsgs = recent.filter(
       (m): m is Api.Message => m instanceof Api.Message
@@ -320,7 +379,10 @@ export class AIChatRunner {
       const target =
         recentMsgs[Math.floor(Math.random() * recentMsgs.length)];
       const emoji = REACTIONS[Math.floor(Math.random() * REACTIONS.length)];
-      const peer = await withFloodWait(() => client.getInputEntity(entity));
+      const peer = await this.floodWait(
+        () => client.getInputEntity(entity),
+        `${session.name} getInputEntity`
+      );
       if (this.config.dryRun) {
         this.log(
           "info",
@@ -328,14 +390,16 @@ export class AIChatRunner {
         );
         return;
       }
-      await withFloodWait(() =>
-        client.invoke(
-          new Api.messages.SendReaction({
-            peer,
-            msgId: target.id,
-            reaction: [new Api.ReactionEmoji({ emoticon: emoji })],
-          })
-        )
+      await this.floodWait(
+        () =>
+          client.invoke(
+            new Api.messages.SendReaction({
+              peer,
+              msgId: target.id,
+              reaction: [new Api.ReactionEmoji({ emoticon: emoji })],
+            })
+          ),
+        `${session.name} sendReaction`
       );
       this.log("success", `${session.name} reacted ${emoji} (#${target.id})`);
       return;
@@ -375,11 +439,13 @@ export class AIChatRunner {
       return;
     }
 
-    await withFloodWait(() =>
-      client.sendMessage(entity, {
-        message: text,
-        replyTo: replyTarget?.id ?? topicId ?? undefined,
-      })
+    await this.floodWait(
+      () =>
+        client.sendMessage(entity, {
+          message: text,
+          replyTo: replyTarget?.id ?? topicId ?? undefined,
+        }),
+      `${session.name} sendMessage`
     );
     this.sentCount++;
     if (strangerTarget) this.repliedStrangerMsgIds.add(strangerTarget.id);
