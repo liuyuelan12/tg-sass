@@ -33,7 +33,7 @@ function parseCsvContent(content: string): CsvRow[] {
   const lines = content.split("\n");
   if (lines.length < 2) return [];
 
-  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const header = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""));
   const textIdx = header.indexOf("text");
   const mediaTypeIdx = header.indexOf("mediatype");
   const mediaPathIdx = header.indexOf("mediapath");

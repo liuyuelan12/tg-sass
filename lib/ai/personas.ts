@@ -34,7 +34,7 @@ function parseCsvText(csvContent: string): CsvParseResult {
   const lines = csvContent.split("\n");
   if (lines.length < 2) return { texts: [] };
 
-  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const header = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""));
   const textIdx = header.indexOf("text");
   if (textIdx === -1) return { texts: [] };
 
