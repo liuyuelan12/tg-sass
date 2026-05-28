@@ -140,6 +140,7 @@ export class AIChatRunner {
   private connected: ConnectedSession[] = [];
   private ownUserIds: Set<string> = new Set();
   private repliedStrangerMsgIds: Set<number> = new Set();
+  private readonly MAX_REPLIED_IDS = 5000;
   private personaPerSession: Map<string, Persona> = new Map();
   private bannedSessionIds: Set<string> = new Set();
   private cooldownUntil: Map<string, number> = new Map();
@@ -461,7 +462,7 @@ export class AIChatRunner {
         `${tag} ${session.name} (${persona.name}) ${action}: ${text.slice(0, 100)}`
       );
       this.sentCount++;
-      if (strangerTarget) this.repliedStrangerMsgIds.add(strangerTarget.id);
+      if (strangerTarget) this.addRepliedId(strangerTarget.id);
       this.recordSelfOpening(text);
       return;
     }
@@ -475,7 +476,7 @@ export class AIChatRunner {
       `${session.name} sendMessage`
     );
     this.sentCount++;
-    if (strangerTarget) this.repliedStrangerMsgIds.add(strangerTarget.id);
+    if (strangerTarget) this.addRepliedId(strangerTarget.id);
     this.recordSelfOpening(text);
     const tag = strangerTarget ? `${action}→stranger` : action;
     this.log(
@@ -667,7 +668,21 @@ export class AIChatRunner {
     }
   }
 
+  private addRepliedId(id: number) {
+    if (this.repliedStrangerMsgIds.size >= this.MAX_REPLIED_IDS) {
+      const first = this.repliedStrangerMsgIds.values().next().value;
+      this.repliedStrangerMsgIds.delete(first!);
+    }
+    this.repliedStrangerMsgIds.add(id);
+  }
+
   async disconnect() {
     await disconnectSessions(this.connected);
+    this.connected = [];
+    this.repliedStrangerMsgIds.clear();
+    this.personaPerSession.clear();
+    this.bannedSessionIds.clear();
+    this.cooldownUntil.clear();
+    this.ownUserIds.clear();
   }
 }

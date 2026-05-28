@@ -84,6 +84,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
         });
       };
 
+      socket.removeAllListeners("session:input");
       socket.on("session:input", (input: string) => {
         if (resolveInput) {
           resolveInput(input);
