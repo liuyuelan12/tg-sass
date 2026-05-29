@@ -377,8 +377,10 @@ export class AIChatRunner {
     // Always fetch recent first — used for stranger detection, react targets,
     // reply targets, and history context.
     const fetchLimit = Math.max(this.config.contextSize, 20);
+    const getMessagesOpts: Parameters<typeof client.getMessages>[1] = { limit: fetchLimit };
+    if (topicId) getMessagesOpts.replyTo = topicId;
     const recent = await this.floodWait(
-      () => client.getMessages(entity, { limit: fetchLimit }),
+      () => client.getMessages(entity, getMessagesOpts),
       `${session.name} getMessages`
     );
     const recentMsgs = recent.filter(
@@ -472,6 +474,7 @@ export class AIChatRunner {
         client.sendMessage(entity, {
           message: text,
           replyTo: replyTarget?.id ?? topicId ?? undefined,
+          ...(topicId ? { topMsgId: topicId } : {}),
         }),
       `${session.name} sendMessage`
     );
