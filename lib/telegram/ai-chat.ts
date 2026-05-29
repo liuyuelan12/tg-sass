@@ -92,6 +92,7 @@ export interface AIChatJobConfig {
   jobId: string;
   encryptedSessions: { id: string; sessionString: string }[];
   groupEntity: string;
+  topicId?: number | null;
   csvR2Key: string;
   llm: {
     provider: LlmProvider;
@@ -186,7 +187,8 @@ export class AIChatRunner {
   }
 
   async start(): Promise<AIChatRunResult> {
-    const { entity, topicId } = parseGroupInput(this.config.groupEntity);
+    const entity = this.config.groupEntity;
+    const topicId = this.config.topicId ?? null;
 
     // ---- Phase A: persona analysis ----
     let analysis: PersonaAnalysis;

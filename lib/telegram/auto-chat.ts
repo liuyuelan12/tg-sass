@@ -107,6 +107,7 @@ function pickAction(
 export interface ChatJobConfig {
   encryptedSessions: string[];
   groupEntity: string;
+  topicId: number | null;
   csvR2Key: string;
   mediaR2Prefix: string;
   intervalMin: number;
@@ -142,7 +143,8 @@ export class AutoChatRunner {
   }
 
   async start(): Promise<number> {
-    const { entity, topicId } = parseGroupInput(this.config.groupEntity);
+    const entity = this.config.groupEntity;
+    const topicId = this.config.topicId;
 
     // Load CSV from R2
     const csvBuffer = await downloadFromR2(this.config.csvR2Key);

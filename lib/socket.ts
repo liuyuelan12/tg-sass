@@ -252,6 +252,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
       const config: ChatJobConfig = {
         encryptedSessions: tgSessions.map((s) => s.sessionString),
         groupEntity: job.groupEntity,
+        topicId: job.topicId,
         csvR2Key: job.csvR2Key || "",
         mediaR2Prefix: job.mediaR2Prefix || "",
         intervalMin: job.intervalMin,
@@ -422,6 +423,7 @@ export function registerSocketHandlers(io: SocketIOServer) {
           sessionString: s.sessionString,
         })),
         groupEntity: job.groupEntity,
+        topicId: job.topicId,
         csvR2Key: scrapeJob.csvR2Key,
         llm: {
           provider: job.provider,
