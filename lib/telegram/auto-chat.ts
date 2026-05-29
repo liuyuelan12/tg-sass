@@ -208,7 +208,7 @@ export class AutoChatRunner {
         try {
           if (action === "react") {
             const recent = await withFloodWait(() =>
-              client.getMessages(entity, { limit: 20 })
+              client.getMessages(entity, { limit: 20, ...(topicId ? { replyTo: topicId } : {}) })
             );
             const candidates = recent.filter(
               (m) => m instanceof Api.Message
@@ -247,7 +247,7 @@ export class AutoChatRunner {
 
             if (action === "reply") {
               const recent = await withFloodWait(() =>
-                client.getMessages(entity, { limit: 20 })
+                client.getMessages(entity, { limit: 20, ...(topicId ? { replyTo: topicId } : {}) })
               );
               const candidates = recent.filter(
                 (m) => m instanceof Api.Message && m.message
@@ -263,6 +263,7 @@ export class AutoChatRunner {
                   message: row.text || undefined,
                   file: file || undefined,
                   replyTo,
+                  ...(topicId ? { topMsgId: topicId } : {}),
                 })
               );
               this.log(
@@ -275,6 +276,7 @@ export class AutoChatRunner {
                   message: row.text || undefined,
                   file: file || undefined,
                   replyTo: topicId || undefined,
+                  ...(topicId ? { topMsgId: topicId } : {}),
                 })
               );
               this.log(
