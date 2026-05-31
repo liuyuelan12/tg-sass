@@ -70,6 +70,10 @@ export async function POST(req: NextRequest) {
     dryRun = false,
     priorityReplyStrangers = false,
     bannedKeywords = [],
+    newsEnabled = false,
+    newsIntervalMinutes = 120,
+    newsRssUrl,
+    manualPersonas,
   } = body;
 
   const normalizedBanned: string[] = Array.isArray(bannedKeywords)
@@ -205,6 +209,10 @@ export async function POST(req: NextRequest) {
       dryRun,
       priorityReplyStrangers,
       bannedKeywords: normalizedBanned,
+      newsEnabled: Boolean(newsEnabled),
+      newsIntervalMinutes: Math.max(1, Number(newsIntervalMinutes) || 120),
+      newsRssUrl: typeof newsRssUrl === "string" && newsRssUrl.trim() ? newsRssUrl.trim() : null,
+      manualPersonasJson: manualPersonas && typeof manualPersonas === "object" ? manualPersonas : undefined,
       status: "PENDING",
     },
   });

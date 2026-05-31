@@ -10,6 +10,7 @@ import {
 import { llmChat, type LlmProvider } from "@/lib/ai/llm";
 import { analyzePersonas, type Persona, type PersonaAnalysis } from "@/lib/ai/personas";
 import { cleanAndValidate } from "@/lib/ai/refusal-guard";
+import { fetchCryptoNews, pickHotTopic, DEFAULT_NEWS_RSS } from "@/lib/ai/news";
 import { prisma } from "@/lib/db";
 
 const REACTIONS = [
@@ -111,6 +112,10 @@ export interface AIChatJobConfig {
   dryRun?: boolean;
   priorityReplyStrangers?: boolean;
   bannedKeywords?: string[];
+  newsEnabled?: boolean;
+  newsIntervalMinutes?: number;
+  newsRssUrl?: string;
+  manualPersonas?: Record<string, Persona>;
   cachedPersonas?: PersonaAnalysis | null;
   cachedSessionPersonaMap?: Record<string, number> | null;
 }
@@ -142,6 +147,8 @@ export class AIChatRunner {
   private ownUserIds: Set<string> = new Set();
   private repliedStrangerMsgIds: Set<number> = new Set();
   private readonly MAX_REPLIED_IDS = 5000;
+  private lastNewsAt = 0;
+  private currentNewsTopic: string | null = null;
   private personaPerSession: Map<string, Persona> = new Map();
   private bannedSessionIds: Set<string> = new Set();
   private cooldownUntil: Map<string, number> = new Map();
@@ -259,11 +266,17 @@ export class AIChatRunner {
       });
     }
     for (const s of this.connected) {
-      const idx = savedMap[s.id] ?? 0;
-      const persona =
-        personasShuffled[idx % personasShuffled.length] ?? analysis.personas[0];
-      this.personaPerSession.set(s.id, persona);
-      this.log("info", `${s.name} → persona: ${persona.name}`);
+      const manual = this.config.manualPersonas?.[s.id];
+      if (manual) {
+        this.personaPerSession.set(s.id, manual);
+        this.log("info", `${s.name} → 手动人格: ${manual.name}`);
+      } else {
+        const idx = savedMap[s.id] ?? 0;
+        const persona =
+          personasShuffled[idx % personasShuffled.length] ?? analysis.personas[0];
+        this.personaPerSession.set(s.id, persona);
+        this.log("info", `${s.name} → persona: ${persona.name}`);
+      }
     }
 
     if (this.aborted) return this.result();
@@ -375,6 +388,30 @@ export class AIChatRunner {
     topicId: number | null
   ): Promise<void> {
     const client = session.client;
+
+    // Refresh news topic if enabled and interval has elapsed
+    if (this.config.newsEnabled) {
+      const intervalMs = (this.config.newsIntervalMinutes ?? 120) * 60_000;
+      if (Date.now() - this.lastNewsAt > intervalMs) {
+        try {
+          const rssUrl = this.config.newsRssUrl || DEFAULT_NEWS_RSS;
+          const items = await fetchCryptoNews(rssUrl);
+          if (items.length > 0) {
+            this.currentNewsTopic = await pickHotTopic(items, {
+              provider: this.config.llm.provider,
+              apiKey: this.config.llm.apiKey,
+              baseUrl: this.config.llm.baseUrl,
+              model: this.config.llm.model,
+              signal: this.abortController.signal,
+            });
+            this.lastNewsAt = Date.now();
+            this.log("info", `📰 新话题: ${this.currentNewsTopic}`);
+          }
+        } catch (err) {
+          this.log("warn", `新闻抓取失败: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
 
     // Always fetch recent first — used for stranger detection, react targets,
     // reply targets, and history context.
@@ -574,7 +611,10 @@ export class AIChatRunner {
       `- NEVER use phrases like "as a", "I'm here to help", or quoted preambles.\n` +
       `- No markdown, no bullet points, no headers.\n` +
       `- Vary your opening word — don't echo the same name/topic word every message just because the chat history does.${overusedRule}${bannedRule}\n` +
-      `- Match the casual register of the sample phrases above — if they are short and slangy, your reply must be too.`;
+      `- Match the casual register of the sample phrases above — if they are short and slangy, your reply must be too.` +
+      (this.currentNewsTopic
+        ? `\n- 当前群里有个热点话题：「${this.currentNewsTopic}」。如果时机合适，自然地把它带入对话，像真人随口提起，不要直接复制原句。`
+        : "");
 
     const historyText =
       history.length > 0
@@ -689,5 +729,7 @@ export class AIChatRunner {
     this.bannedSessionIds.clear();
     this.cooldownUntil.clear();
     this.ownUserIds.clear();
+    this.currentNewsTopic = null;
+    this.lastNewsAt = 0;
   }
 }

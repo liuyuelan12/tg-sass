@@ -149,6 +149,10 @@ model AIChatJob {
   dryRun            Boolean     @default(false)
   priorityReplyStrangers Boolean @default(false)
   bannedKeywords    String[]
+  newsEnabled       Boolean  @default(false)
+  newsIntervalMinutes Int    @default(120)
+  newsRssUrl        String?
+  manualPersonasJson Json?
   status            JobStatus   @default(PENDING)
   sentCount         Int         @default(0)
   tokensIn          Int         @default(0)

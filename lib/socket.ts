@@ -442,6 +442,10 @@ export function registerSocketHandlers(io: SocketIOServer) {
         dryRun: job.dryRun,
         priorityReplyStrangers: job.priorityReplyStrangers,
         bannedKeywords: job.bannedKeywords,
+        newsEnabled: job.newsEnabled,
+        newsIntervalMinutes: job.newsIntervalMinutes,
+        newsRssUrl: job.newsRssUrl ?? undefined,
+        manualPersonas: job.manualPersonasJson as unknown as Record<string, import("@/lib/ai/personas").Persona> ?? undefined,
         cachedPersonas,
         cachedSessionPersonaMap,
       };

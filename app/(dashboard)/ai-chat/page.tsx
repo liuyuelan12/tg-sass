@@ -231,6 +231,13 @@ export default function AIChatPage() {
   const [dryRun, setDryRun] = useState(true);
   const [priorityReplyStrangers, setPriorityReplyStrangers] = useState(false);
   const [bannedKeywordsText, setBannedKeywordsText] = useState("");
+  const [newsEnabled, setNewsEnabled] = useState(false);
+  const [newsIntervalMinutes, setNewsIntervalMinutes] = useState("120");
+  const [newsRssUrl, setNewsRssUrl] = useState("");
+  const [manualPersonasEnabled, setManualPersonasEnabled] = useState(false);
+  const [manualPersonasMap, setManualPersonasMap] = useState<
+    Record<string, { name: string; traits: string; samplePhrases: string }>
+  >({});
   const [showByok, setShowByok] = useState(false);
   const [byokProvider, setByokProvider] = useState<Provider>("GROQ_BYOK");
   const [byokKey, setByokKey] = useState("");
@@ -395,6 +402,26 @@ export default function AIChatPage() {
             .split(/[\n,，]/)
             .map((s) => s.trim())
             .filter(Boolean),
+          newsEnabled,
+          newsIntervalMinutes: parseInt(newsIntervalMinutes) || 120,
+          newsRssUrl: newsRssUrl.trim() || undefined,
+          manualPersonas: manualPersonasEnabled
+            ? Object.fromEntries(
+                Object.entries(manualPersonasMap)
+                  .filter(([, v]) => v.name.trim())
+                  .map(([id, v]) => [
+                    id,
+                    {
+                      name: v.name.trim(),
+                      traits: v.traits.trim(),
+                      samplePhrases: v.samplePhrases
+                        .split("\n")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    },
+                  ])
+              )
+            : undefined,
         }),
       });
       if (!res.ok) {
@@ -700,6 +727,126 @@ export default function AIChatPage() {
                 {t.bannedKeywordsHelp}
               </span>
             </label>
+          </div>
+
+          {/* News feature */}
+          <div className="border border-border/40 rounded-md p-3 space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={newsEnabled}
+                onChange={(e) => setNewsEnabled(e.target.checked)}
+                className="rounded"
+              />
+              {lang === "zh" ? "📰 定时新闻触发话题" : "📰 Timed news topic injection"}
+            </label>
+            {newsEnabled && (
+              <div className="space-y-2 pl-5">
+                <p className="text-xs text-muted-foreground">
+                  {lang === "zh"
+                    ? "每隔指定分钟抓一批币圈新闻，让 AI 自然地在群里引出话题讨论。"
+                    : "Periodically fetch crypto news and have the AI naturally bring up the hottest topic."}
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">
+                      {lang === "zh" ? "刷新间隔（分钟）" : "Refresh interval (min)"}
+                    </label>
+                    <input
+                      type="number"
+                      min={5}
+                      value={newsIntervalMinutes}
+                      onChange={(e) => setNewsIntervalMinutes(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">
+                      {lang === "zh" ? "RSS 地址（留空用默认）" : "RSS URL (blank = default)"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://cn.cointelegraph.com/rss"
+                      value={newsRssUrl}
+                      onChange={(e) => setNewsRssUrl(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Manual persona per session */}
+          <div className="border border-border/40 rounded-md p-3 space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={manualPersonasEnabled}
+                onChange={(e) => setManualPersonasEnabled(e.target.checked)}
+                className="rounded"
+              />
+              {lang === "zh" ? "🎭 手动配置每个账号的人格" : "🎭 Manual persona per account"}
+            </label>
+            {manualPersonasEnabled && (
+              <div className="space-y-3 pl-5">
+                <p className="text-xs text-muted-foreground">
+                  {lang === "zh"
+                    ? "为每个账号单独写人格，未填写的账号仍从 CSV 自动分析。"
+                    : "Define persona per account. Accounts without a manual persona fall back to CSV analysis."}
+                </p>
+                {sessions
+                  .filter((s) => s.isActive && selectedSessions.includes(s.id))
+                  .map((s) => {
+                    const p = manualPersonasMap[s.id] ?? { name: "", traits: "", samplePhrases: "" };
+                    const set = (patch: Partial<typeof p>) =>
+                      setManualPersonasMap((prev) => ({ ...prev, [s.id]: { ...p, ...patch } }));
+                    return (
+                      <div key={s.id} className="border border-border/30 rounded-md p-3 space-y-2">
+                        <div className="text-xs font-semibold text-primary">{s.label}</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">
+                              {lang === "zh" ? "人格名称" : "Persona name"}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={lang === "zh" ? "如：激进多头" : "e.g. Aggressive Bull"}
+                              value={p.name}
+                              onChange={(e) => set({ name: e.target.value })}
+                              className="flex h-8 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">
+                              {lang === "zh" ? "风格特征" : "Style traits"}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={lang === "zh" ? "说话直接、爱用感叹号…" : "Direct, uses exclamation marks…"}
+                              value={p.traits}
+                              onChange={(e) => set({ traits: e.target.value })}
+                              className="flex h-8 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">
+                            {lang === "zh" ? "示例短语（每行一条）" : "Sample phrases (one per line)"}
+                          </label>
+                          <textarea
+                            rows={3}
+                            placeholder={lang === "zh" ? "冲！\n稳了稳了\n这波必涨" : "LFG!\nGMI\nThis is the bottom"}
+                            value={p.samplePhrases}
+                            onChange={(e) => set({ samplePhrases: e.target.value })}
+                            className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm font-mono"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3">
