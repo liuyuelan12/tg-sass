@@ -94,7 +94,7 @@ export interface AIChatJobConfig {
   encryptedSessions: { id: string; sessionString: string }[];
   groupEntity: string;
   topicId?: number | null;
-  csvR2Key: string;
+  csvR2Key: string | null;
   llm: {
     provider: LlmProvider;
     apiKey: string;
@@ -202,7 +202,7 @@ export class AIChatRunner {
     if (this.config.cachedPersonas) {
       analysis = this.config.cachedPersonas;
       this.log("info", `Using cached personas (${analysis.personas.length} archetypes, lang=${analysis.language})`);
-    } else {
+    } else if (this.config.csvR2Key) {
       this.log("info", "Downloading CSV for persona analysis...");
       const csvBuffer = await downloadFromR2(this.config.csvR2Key);
       const csvText = csvBuffer.toString("utf-8");
@@ -224,6 +224,26 @@ export class AIChatRunner {
           detectedLanguage: analysis.language,
           personasJson: analysis as unknown as object,
         },
+      });
+    } else {
+      // No scrape CSV — synthesize analysis from manual personas (must cover all sessions).
+      const manualList = Object.values(this.config.manualPersonas ?? {});
+      if (manualList.length === 0) {
+        this.log("error", "No CSV and no manual personas — nothing to drive the chat");
+        return this.result();
+      }
+      const sampleText = manualList
+        .map((p) => `${p.name} ${p.traits} ${p.samplePhrases.join(" ")}`)
+        .join(" ");
+      const language: "zh" | "en" = /[一-龥]/.test(sampleText) ? "zh" : "en";
+      analysis = { language, personas: manualList };
+      this.log(
+        "info",
+        `Manual-persona mode: lang=${language}, ${manualList.length} persona(s) supplied`
+      );
+      await prisma.aIChatJob.update({
+        where: { id: this.config.jobId },
+        data: { detectedLanguage: language },
       });
     }
     this.analysis = analysis;

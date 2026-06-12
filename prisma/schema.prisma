@@ -130,7 +130,7 @@ model AIChatJob {
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   groupEntity       String
   topicId           Int?
-  scrapeJobId       String
+  scrapeJobId       String?
   sessionIds        String[]
   provider          LlmProvider @default(GROQ_DEFAULT)
   apiKeyId          String?

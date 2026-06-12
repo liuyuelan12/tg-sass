@@ -86,9 +86,9 @@ export async function POST(req: NextRequest) {
       ).slice(0, 50)
     : [];
 
-  if (!Array.isArray(sessionIds) || sessionIds.length === 0 || !scrapeJobId || !targetGroup) {
+  if (!Array.isArray(sessionIds) || sessionIds.length === 0 || !targetGroup) {
     return NextResponse.json(
-      { error: "Missing required fields (sessionIds, scrapeJobId, targetGroup)" },
+      { error: "Missing required fields (sessionIds, targetGroup)" },
       { status: 400 }
     );
   }
@@ -125,14 +125,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No valid sessions" }, { status: 400 });
   }
 
-  const scrapeJob = await prisma.scrapeJob.findFirst({
-    where: { id: scrapeJobId, userId: guard.user.id },
-  });
-  if (!scrapeJob?.csvR2Key) {
-    return NextResponse.json(
-      { error: "ScrapeJob not found or has no CSV" },
-      { status: 404 }
-    );
+  let scrapeJob: { id: string; csvR2Key: string | null } | null = null;
+  if (scrapeJobId) {
+    scrapeJob = await prisma.scrapeJob.findFirst({
+      where: { id: scrapeJobId, userId: guard.user.id },
+      select: { id: true, csvR2Key: true },
+    });
+    if (!scrapeJob?.csvR2Key) {
+      return NextResponse.json(
+        { error: "ScrapeJob not found or has no CSV" },
+        { status: 404 }
+      );
+    }
+  } else {
+    // No scrape source — require manual personas covering every selected session.
+    const manualCount =
+      manualPersonas && typeof manualPersonas === "object"
+        ? Object.keys(manualPersonas).length
+        : 0;
+    if (manualCount < tgSessions.length) {
+      return NextResponse.json(
+        {
+          error: `Without scrapeJobId, manualPersonas must cover all ${tgSessions.length} sessions (got ${manualCount})`,
+        },
+        { status: 400 }
+      );
+    }
   }
 
   let resolvedApiKeyId: string | null = null;
@@ -193,7 +211,7 @@ export async function POST(req: NextRequest) {
       userId: guard.user.id,
       groupEntity: entity,
       topicId,
-      scrapeJobId: scrapeJob.id,
+      scrapeJobId: scrapeJob?.id ?? null,
       sessionIds: tgSessions.map((s) => s.id),
       provider,
       apiKeyId: resolvedApiKeyId,
