@@ -153,6 +153,8 @@ model AIChatJob {
   newsIntervalMinutes Int    @default(120)
   newsRssUrl        String?
   manualPersonasJson Json?
+  autoResurrect     Boolean     @default(false)
+  lastResurrectAt   DateTime?
   status            JobStatus   @default(PENDING)
   sentCount         Int         @default(0)
   tokensIn          Int         @default(0)

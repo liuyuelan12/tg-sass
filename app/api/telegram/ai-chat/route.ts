@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
     newsIntervalMinutes = 120,
     newsRssUrl,
     manualPersonas,
+    autoResurrect = false,
   } = body;
 
   const normalizedBanned: string[] = Array.isArray(bannedKeywords)
@@ -231,6 +232,7 @@ export async function POST(req: NextRequest) {
       newsIntervalMinutes: Math.max(1, Number(newsIntervalMinutes) || 120),
       newsRssUrl: typeof newsRssUrl === "string" && newsRssUrl.trim() ? newsRssUrl.trim() : null,
       manualPersonasJson: manualPersonas && typeof manualPersonas === "object" ? manualPersonas : undefined,
+      autoResurrect: Boolean(autoResurrect),
       status: "PENDING",
     },
   });
