@@ -303,15 +303,27 @@ export class AIChatRunner {
 
     // ---- Phase D: main loop ----
     let round = 1;
+    let roundBaseSent = 0;
     do {
-      if (round > 1) this.log("info", `Round ${round}`);
+      if (round > 1) {
+        this.log("info", `Round ${round} (total sent so far: ${this.sentCount})`);
+        roundBaseSent = this.sentCount;
+      }
 
       for (let turn = 0; turn < this.connected.length * 8; turn++) {
         if (this.aborted) {
           this.log("info", `Stopped after ${this.sentCount} messages`);
           return this.result();
         }
-        if (this.sentCount >= this.config.maxMessages) {
+        const roundSent = this.sentCount - roundBaseSent;
+        if (roundSent >= this.config.maxMessages) {
+          if (this.config.shouldLoop) {
+            this.log(
+              "info",
+              `Round ${round} hit maxMessages=${this.config.maxMessages}; starting next round`
+            );
+            break; // exit inner for; outer do/while iterates
+          }
           this.log(
             "success",
             `Reached maxMessages=${this.config.maxMessages}; stopping`
