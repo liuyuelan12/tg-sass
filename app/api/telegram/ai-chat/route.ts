@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     newsEnabled = false,
     newsIntervalMinutes = 120,
     newsRssUrl,
+    newsTopicMaxMessages = 50,
     manualPersonas,
     autoResurrect = false,
   } = body;
@@ -231,6 +232,7 @@ export async function POST(req: NextRequest) {
       newsEnabled: Boolean(newsEnabled),
       newsIntervalMinutes: Math.max(1, Number(newsIntervalMinutes) || 120),
       newsRssUrl: typeof newsRssUrl === "string" && newsRssUrl.trim() ? newsRssUrl.trim() : null,
+      newsTopicMaxMessages: Math.max(1, Math.min(500, Number(newsTopicMaxMessages) || 50)),
       manualPersonasJson: manualPersonas && typeof manualPersonas === "object" ? manualPersonas : undefined,
       autoResurrect: Boolean(autoResurrect),
       status: "PENDING",

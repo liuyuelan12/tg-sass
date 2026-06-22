@@ -142,6 +142,7 @@ export async function runAIChatJob(opts: RunOpts): Promise<RunAIChatResult> {
     newsEnabled: job.newsEnabled,
     newsIntervalMinutes: job.newsIntervalMinutes,
     newsRssUrl: job.newsRssUrl ?? undefined,
+    newsTopicMaxMessages: job.newsTopicMaxMessages,
     manualPersonas,
     cachedPersonas,
     cachedSessionPersonaMap,

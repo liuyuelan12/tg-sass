@@ -233,6 +233,7 @@ export default function AIChatPage() {
   const [bannedKeywordsText, setBannedKeywordsText] = useState("");
   const [newsEnabled, setNewsEnabled] = useState(false);
   const [newsIntervalMinutes, setNewsIntervalMinutes] = useState("120");
+  const [newsTopicMaxMessages, setNewsTopicMaxMessages] = useState("50");
   const [newsRssUrl, setNewsRssUrl] = useState("");
   const [manualPersonasEnabled, setManualPersonasEnabled] = useState(false);
   const [manualPersonasMap, setManualPersonasMap] = useState<
@@ -404,6 +405,7 @@ export default function AIChatPage() {
             .filter(Boolean),
           newsEnabled,
           newsIntervalMinutes: parseInt(newsIntervalMinutes) || 120,
+          newsTopicMaxMessages: parseInt(newsTopicMaxMessages) || 50,
           newsRssUrl: newsRssUrl.trim() || undefined,
           manualPersonas: manualPersonasEnabled
             ? Object.fromEntries(
@@ -761,6 +763,21 @@ export default function AIChatPage() {
                     />
                   </div>
                   <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">
+                      {lang === "zh"
+                        ? "话题最大消息数（用满后停用直到下次刷新）"
+                        : "Max msgs per topic (paused until next refresh)"}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={newsTopicMaxMessages}
+                      onChange={(e) => setNewsTopicMaxMessages(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
                     <label className="text-xs text-muted-foreground">
                       {lang === "zh" ? "RSS 地址（留空用默认）" : "RSS URL (blank = default)"}
                     </label>

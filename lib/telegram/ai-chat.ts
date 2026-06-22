@@ -115,6 +115,7 @@ export interface AIChatJobConfig {
   newsEnabled?: boolean;
   newsIntervalMinutes?: number;
   newsRssUrl?: string;
+  newsTopicMaxMessages?: number;
   manualPersonas?: Record<string, Persona>;
   cachedPersonas?: PersonaAnalysis | null;
   cachedSessionPersonaMap?: Record<string, number> | null;
@@ -149,6 +150,7 @@ export class AIChatRunner {
   private readonly MAX_REPLIED_IDS = 5000;
   private lastNewsAt = 0;
   private currentNewsTopic: string | null = null;
+  private newsTopicSentSince = 0;
   private personaPerSession: Map<string, Persona> = new Map();
   private bannedSessionIds: Set<string> = new Set();
   private cooldownUntil: Map<string, number> = new Map();
@@ -437,6 +439,7 @@ export class AIChatRunner {
               signal: this.abortController.signal,
             });
             this.lastNewsAt = Date.now();
+            this.newsTopicSentSince = 0;
             this.log("info", `📰 新话题: ${this.currentNewsTopic}`);
           }
         } catch (err) {
@@ -535,6 +538,7 @@ export class AIChatRunner {
         `${tag} ${session.name} (${persona.name}) ${action}: ${text.slice(0, 100)}`
       );
       this.sentCount++;
+      this.noteTopicMessageSent();
       if (strangerTarget) this.addRepliedId(strangerTarget.id);
       this.recordSelfOpening(text);
       return;
@@ -550,6 +554,7 @@ export class AIChatRunner {
       `${session.name} sendMessage`
     );
     this.sentCount++;
+    this.noteTopicMessageSent();
     if (strangerTarget) this.addRepliedId(strangerTarget.id);
     this.recordSelfOpening(text);
     const tag = strangerTarget ? `${action}→stranger` : action;
@@ -557,6 +562,19 @@ export class AIChatRunner {
       "success",
       `${session.name} (${persona.name}) ${tag}: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`
     );
+  }
+
+  private noteTopicMessageSent(): void {
+    if (this.currentNewsTopic === null) return;
+    this.newsTopicSentSince++;
+    const cap = this.config.newsTopicMaxMessages ?? 50;
+    if (this.newsTopicSentSince >= cap) {
+      this.log(
+        "info",
+        `📰 话题「${this.currentNewsTopic}」已用满 ${this.newsTopicSentSince} 句，停用直到下次刷新`
+      );
+      this.currentNewsTopic = null;
+    }
   }
 
   private recordSelfOpening(text: string): void {
@@ -763,5 +781,6 @@ export class AIChatRunner {
     this.ownUserIds.clear();
     this.currentNewsTopic = null;
     this.lastNewsAt = 0;
+    this.newsTopicSentSince = 0;
   }
 }

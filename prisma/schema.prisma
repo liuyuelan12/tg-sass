@@ -152,6 +152,7 @@ model AIChatJob {
   newsEnabled       Boolean  @default(false)
   newsIntervalMinutes Int    @default(120)
   newsRssUrl        String?
+  newsTopicMaxMessages Int   @default(50)
   manualPersonasJson Json?
   autoResurrect     Boolean     @default(false)
   lastResurrectAt   DateTime?
