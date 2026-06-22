@@ -463,9 +463,14 @@ export class AIChatRunner {
       () => client.getMessages(entity, getMessagesOpts),
       `${session.name} getMessages`
     );
-    const recentMsgs = recent.filter(
+    const recentMsgsRaw = recent.filter(
       (m): m is Api.Message => m instanceof Api.Message
     );
+    // Drop ad / spam messages BEFORE downstream consumers (stranger picker,
+    // react target picker, LLM history) so the AI doesn't pick an ad as
+    // reply target, doesn't react to an ad, and doesn't see an ad in
+    // context (which would otherwise make it reply in-kind to ad chatter).
+    const recentMsgs = this.dropAdMessages(recentMsgsRaw);
 
     // Stranger priority: if toggle is on and an unanswered stranger spoke,
     // override action to "reply" and pin the target.
@@ -568,6 +573,68 @@ export class AIChatRunner {
       "success",
       `${session.name} (${persona.name}) ${tag}: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`
     );
+  }
+
+  // Built-in baseline of ad / spam markers we always strip from candidate
+  // messages. Kept very conservative — only phrases that read as obvious
+  // shill / scam / dropshipping pitches across crypto Telegram groups, so we
+  // don't filter out legitimate chatter about prices ("8k") or projects.
+  private static readonly DEFAULT_AD_KEYWORDS: readonly string[] = [
+    "有手就行",
+    "招代理",
+    "招渠道",
+    "日入",
+    "日结",
+    "包赔",
+    "稳赚",
+    "高佣",
+    "返水",
+    "返佣",
+    "代付",
+    "出U",
+    "出u",
+    "兑U",
+    "兑u",
+    "加微",
+    "加vx",
+    "加VX",
+    "加v信",
+    "加V信",
+    "加扣",
+    "加QQ",
+    "上岸",
+    "找老板",
+    "接单",
+  ];
+
+  private adKeywordSetCache: Set<string> | null = null;
+
+  private adKeywordSet(): Set<string> {
+    if (this.adKeywordSetCache) return this.adKeywordSetCache;
+    const set = new Set<string>();
+    for (const kw of AIChatRunner.DEFAULT_AD_KEYWORDS) {
+      const k = kw.trim().toLowerCase();
+      if (k) set.add(k);
+    }
+    for (const kw of this.config.bannedKeywords ?? []) {
+      const k = kw.trim().toLowerCase();
+      if (k) set.add(k);
+    }
+    this.adKeywordSetCache = set;
+    return set;
+  }
+
+  private dropAdMessages(msgs: Api.Message[]): Api.Message[] {
+    const set = this.adKeywordSet();
+    if (set.size === 0) return msgs;
+    return msgs.filter((m) => {
+      if (!m.message) return true;
+      const text = m.message.toLowerCase();
+      for (const kw of set) {
+        if (text.includes(kw)) return false;
+      }
+      return true;
+    });
   }
 
   private noteTopicMessageSent(): void {
