@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { prisma } from "@/lib/db";
+import { getBrandConfigFromHost } from "@/lib/branding";
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
@@ -46,13 +47,18 @@ export async function POST(req: NextRequest) {
       console.log(`=========================\n`);
     }
 
+    // 按访问域名（host）选择品牌署名
+    const brand = getBrandConfigFromHost(
+      req.headers.get("x-forwarded-host") ?? req.headers.get("host")
+    );
+
     const { data, error } = await getResend().emails.send({
-      from: process.env.OTP_FROM_EMAIL || "电报大师兄 <noreply@example.com>",
+      from: process.env.OTP_FROM_EMAIL || `${brand.emailName} <noreply@example.com>`,
       to: normalizedEmail,
-      subject: "您的电报大师兄登录验证码",
+      subject: `您的${brand.emailName}登录验证码`,
       html: `
         <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #3b82f6;">电报大师兄</h2>
+          <h2 style="color: #3b82f6;">${brand.emailName}</h2>
           <p>您的验证码是：</p>
           <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: #f1f5f9; border-radius: 8px; margin: 16px 0;">
             ${code}

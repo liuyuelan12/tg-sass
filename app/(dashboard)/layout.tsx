@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Globe } from "lucide-react";
 import { useLanguage } from "@/lib/useLanguage";
+import { getBrandFromWindow } from "@/lib/branding";
 
 const translations = {
   en: {
@@ -235,6 +236,7 @@ export default function DashboardLayout({
 
   if (!session) return null;
 
+  const brand = getBrandFromWindow();
   const t = translations[lang];
   const navItems = getNavItems(t);
   const plans = getPlansList(lang, t);
@@ -246,12 +248,12 @@ export default function DashboardLayout({
         <div className="p-4 border-b border-border/40">
           <div className="flex items-center gap-2">
             <img
-              src="/logo.png"
-              alt="Logo"
+              src={brand.logo}
+              alt={brand.locale[lang].title}
               className="w-8 h-8 rounded-lg shadow-sm object-cover"
             />
             <Link href="/" className="text-lg font-bold tracking-tight">
-              {t.title}
+              {brand.locale[lang].title}
             </Link>
           </div>
         </div>
@@ -400,19 +402,19 @@ export default function DashboardLayout({
                 <div>
                   <div className="text-muted-foreground mb-1">BEP20 (BSC)</div>
                   <code className="break-all select-all text-foreground">
-                    0xa1a267a24316a039d3f9feff2968e3e0d1029848
+                    {brand.usdtBep20}
                   </code>
                 </div>
                 <div>
                   <div className="text-muted-foreground mb-1">TRC20 (Tron)</div>
                   <code className="break-all select-all text-foreground">
-                    TEfJbc178R6NzogDakY2Q1Xritm24VnxL7
+                    {brand.usdtTrc20}
                   </code>
                 </div>
               </div>
               <div className="pt-2">
                 <a
-                  href="https://t.me/kowliep"
+                  href={brand.supportTelegram}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
