@@ -10,7 +10,7 @@ import {
 import { llmChat, type LlmProvider } from "@/lib/ai/llm";
 import { analyzePersonas, type Persona, type PersonaAnalysis } from "@/lib/ai/personas";
 import { cleanAndValidate } from "@/lib/ai/refusal-guard";
-import { fetchCryptoNews, pickHotTopic, DEFAULT_NEWS_RSS } from "@/lib/ai/news";
+import { fetchCryptoNews, pickHotTopic, DEFAULT_NEWS_RSS_URLS } from "@/lib/ai/news";
 import { prisma } from "@/lib/db";
 
 const REACTIONS = [
@@ -428,8 +428,14 @@ export class AIChatRunner {
       const intervalMs = (this.config.newsIntervalMinutes ?? 120) * 60_000;
       if (Date.now() - this.lastNewsAt > intervalMs) {
         try {
-          const rssUrl = this.config.newsRssUrl || DEFAULT_NEWS_RSS;
-          const items = await fetchCryptoNews(rssUrl);
+          // User-supplied newsRssUrl is honored as-is (no fallback — they
+          // explicitly chose it). Empty/null falls back to the curated
+          // ordered list so a single dead feed doesn't kill the feature.
+          const rssSource: string | readonly string[] =
+            this.config.newsRssUrl && this.config.newsRssUrl.trim()
+              ? this.config.newsRssUrl.trim()
+              : DEFAULT_NEWS_RSS_URLS;
+          const items = await fetchCryptoNews(rssSource);
           if (items.length > 0) {
             this.currentNewsTopic = await pickHotTopic(items, {
               provider: this.config.llm.provider,

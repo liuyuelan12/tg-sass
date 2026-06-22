@@ -5,7 +5,18 @@ export interface NewsItem {
   description: string;
 }
 
-export const DEFAULT_NEWS_RSS = "https://cn.cointelegraph.com/rss";
+// Ordered fallback list. cn.cointelegraph.com died (410); these are all live
+// English crypto-news feeds. The runner passes the whole list to
+// fetchCryptoNews(); it walks them in order until one returns >=1 items.
+export const DEFAULT_NEWS_RSS_URLS: readonly string[] = [
+  "https://cointelegraph.com/rss",
+  "https://decrypt.co/feed",
+  "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml",
+  "https://www.theblock.co/rss.xml",
+];
+
+// Backwards-compatible single-URL export. Prefer DEFAULT_NEWS_RSS_URLS.
+export const DEFAULT_NEWS_RSS = DEFAULT_NEWS_RSS_URLS[0];
 
 // Parse RSS XML without external dependencies using regex
 function parseRssItems(xml: string): NewsItem[] {
@@ -23,14 +34,39 @@ function parseRssItems(xml: string): NewsItem[] {
   return items;
 }
 
-export async function fetchCryptoNews(rssUrl: string): Promise<NewsItem[]> {
+async function fetchOneRss(rssUrl: string): Promise<NewsItem[]> {
   const res = await fetch(rssUrl, {
     headers: { "User-Agent": "Mozilla/5.0 (compatible; RSSReader/1.0)" },
+    redirect: "follow",
     signal: AbortSignal.timeout(10_000),
   });
-  if (!res.ok) throw new Error(`RSS fetch failed: ${res.status}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const xml = await res.text();
-  return parseRssItems(xml).slice(0, 10);
+  const items = parseRssItems(xml).slice(0, 10);
+  if (items.length === 0) throw new Error("zero items parsed");
+  return items;
+}
+
+/**
+ * Fetch crypto news from one URL or a fallback chain of URLs. With an array
+ * we try each in order and return the first that yields >=1 items, so a single
+ * dead feed (404/410/timeout/redirect-loop/etc.) doesn't kill the news
+ * feature. Throws an aggregated error only when all sources fail.
+ */
+export async function fetchCryptoNews(
+  rssUrl: string | readonly string[]
+): Promise<NewsItem[]> {
+  const urls = Array.isArray(rssUrl) ? rssUrl : [rssUrl as string];
+  const errors: string[] = [];
+  for (const url of urls) {
+    try {
+      return await fetchOneRss(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`${url} → ${msg}`);
+    }
+  }
+  throw new Error(`All RSS sources failed: ${errors.join(" | ")}`);
 }
 
 export async function pickHotTopic(
