@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/lib/useLanguage";
+import { getBrandFromWindow } from "@/lib/branding";
 
 const translations = {
   en: {
@@ -39,6 +40,10 @@ const translations = {
     logSaved: "Session saved",
     logDisconnected: "Disconnected",
     logSent: "Sent",
+    lockedTitle: "Sessions via Admin",
+    lockedDesc:
+      "Self-service session generation is disabled here. Please contact the admin to purchase ready-to-use sessions.",
+    lockedContactBtn: "Contact Admin on Telegram",
   },
   zh: {
     pageTitle: "账号管理",
@@ -69,6 +74,9 @@ const translations = {
     logSaved: "账号已保存",
     logDisconnected: "连接已断开",
     logSent: "已发送",
+    lockedTitle: "Session 需向管理员购买",
+    lockedDesc: "本站不支持自助生成 Session，请联系管理员购买可用的 Session。",
+    lockedContactBtn: "通过 Telegram 联系管理员",
   }
 };
 
@@ -231,6 +239,33 @@ export default function SessionGenPage() {
   }
 
   if (!mounted) return null;
+
+  // 按品牌锁定：apollo 等客户走管理员代购，不开放自助生成，改为引导联系管理员购买。
+  const brand = getBrandFromWindow();
+  if (brand.sessionGenLocked) {
+    return (
+      <div className="max-w-2xl mx-auto py-12">
+        <Card>
+          <CardHeader className="text-center">
+            <div className="text-4xl mb-2">🔐</div>
+            <CardTitle className="text-xl">{t.lockedTitle}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-5">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {t.lockedDesc}
+            </p>
+            <a
+              href={brand.supportTelegram}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button>{t.lockedContactBtn}</Button>
+            </a>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const invalidCount = sessions.filter((s) => !s.isActive).length;
 

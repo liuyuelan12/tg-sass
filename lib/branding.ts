@@ -30,6 +30,22 @@ export interface BrandLocaleStrings {
   metaTitle: string;
   /** <meta description> */
   metaDescription: string;
+
+  /**
+   * 以下为可选的「按品牌覆盖」landing 文案（功能区 + 价格标题）。
+   * 不填则沿用 LandingClient 默认文案（大师兄风格）；apollo 用中性文案覆盖，
+   * 避免出现"大师兄/师兄"等大师兄品牌专属措辞。
+   */
+  featSession?: string;
+  featSessionDesc?: string;
+  featProfile?: string;
+  featProfileDesc?: string;
+  featScraper?: string;
+  featScraperDesc?: string;
+  featAuto?: string;
+  featAutoDesc?: string;
+  pricingTitle?: string;
+  pricingDesc?: string;
 }
 
 export interface BrandConfig {
@@ -52,6 +68,11 @@ export interface BrandConfig {
   heroBackground: string;
   /** 价格倍率：基准价（200/300/500）× 此值 */
   priceMultiplier: number;
+  /**
+   * true 时 /session-gen 不显示自助生成 UI，改为「联系管理员购买 Session」引导页
+   * （侧边栏入口保留）。用于 apollo 这类走管理员代购 session 的客户。
+   */
+  sessionGenLocked: boolean;
   /** 视觉主题，作为 CSS 变量注入 landing 根节点 */
   theme: BrandTheme;
   /** 分语言的品牌文案 */
@@ -85,6 +106,7 @@ export const BRAND_CONFIG: Record<Brand, BrandConfig> = {
     usdtTrc20: "TEfJbc178R6NzogDakY2Q1Xritm24VnxL7",
     heroBackground: "/hero-monkey.png",
     priceMultiplier: 1,
+    sessionGenLocked: false,
     theme: {
       // 保持现有视觉：蓝 primary + 青→紫 渐变 + 紫色辉光
       primary: "#3b82f6",
@@ -131,11 +153,12 @@ export const BRAND_CONFIG: Record<Brand, BrandConfig> = {
     favicon: "/brands/apollo/favicon.ico",
     footerName: "Apollo",
     emailName: "Apollo TG Bot",
-    supportTelegram: "https://t.me/kowliep", // TODO(apollo): 换成客户的客服 TG
+    supportTelegram: "https://t.me/ProfBetwin", // apollo 客服/管理员（购买 session、付款联系）
     usdtBep20: "0xa1a267a24316a039d3f9feff2968e3e0d1029848", // TODO(apollo): 换成客户收款地址
     usdtTrc20: "TEfJbc178R6NzogDakY2Q1Xritm24VnxL7", // TODO(apollo): 换成客户收款地址
     heroBackground: "/brands/apollo/hero-bg.png", // 待 Gemini 生成
     priceMultiplier: 10, // 每个 plan 价格 ×10（$2000 / $3000 / $5000）
+    sessionGenLocked: true, // apollo: session 由管理员代购，隐藏自助生成
     theme: {
       // Apollo = 太阳神，金色 + 橙 高端主题，区别于大师兄的蓝紫
       primary: "#f59e0b", // amber-500 金
@@ -156,6 +179,22 @@ export const BRAND_CONFIG: Record<Brand, BrandConfig> = {
         metaTitle: "Apollo TG Bot | Telegram Automation Platform",
         metaDescription:
           "Professional Telegram automation: session generation, intelligent scraping, profile management, and autonomous group interaction.",
+        // 中性功能区文案（替换大师兄风格）
+        featSession: "Session Management",
+        featSessionDesc:
+          "Reliably manage hundreds of sessions — login, health checks, and rotation in one place.",
+        featProfile: "Profile Editor",
+        featProfileDesc:
+          "Batch-update names, usernames, and avatars to switch account identities fast.",
+        featScraper: "Message Scraper",
+        featScraperDesc:
+          "Precisely extract messages from groups and forum topics — full data in your hands.",
+        featAuto: "AI Auto Chat",
+        featAutoDesc:
+          "Fully automated AI conversations with context-aware replies and account rotation.",
+        pricingTitle: "Pricing Plans",
+        pricingDesc:
+          "Choose the plan that fits — professional-grade Telegram automation.",
       },
       zh: {
         title: "Apollo TG Bot",
@@ -168,6 +207,17 @@ export const BRAND_CONFIG: Record<Brand, BrandConfig> = {
         metaTitle: "Apollo TG Bot | Telegram 自动化营销平台",
         metaDescription:
           "专业的 Telegram 自动化工具：账号生成、智能采集、资料管理和自动群发。",
+        // 中性功能区文案（替换大师兄风格）
+        featSession: "账号管理",
+        featSessionDesc: "稳定管理成百上千个 Session，登录、检测、轮换一站式搞定。",
+        featProfile: "资料修改",
+        featProfileDesc: "批量修改名称、用户名和头像，快速切换账号身份。",
+        featScraper: "消息采集",
+        featScraperDesc: "精准采集群组与论坛话题消息，数据尽在掌握。",
+        featAuto: "AI 智能代聊",
+        featAutoDesc: "全自动 AI 对话，上下文连贯，多账号轮换永不掉线。",
+        pricingTitle: "价格方案",
+        pricingDesc: "按需选择套餐，专业级 Telegram 自动化能力。",
       },
     },
   },
