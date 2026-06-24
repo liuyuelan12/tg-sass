@@ -77,10 +77,10 @@ const getNavItems = (t: any) => [
   { href: "#pricing", label: t.navPricing, icon: "💰" },
 ];
 
-const getPlansList = (lang: string, t: any) => [
+const getPlansList = (lang: string, t: any, mult: number = 1) => [
   {
     name: t.planBasic,
-    price: "$200",
+    price: `$${200 * mult}`,
     highlight: false,
     description: t.planBasicDesc,
     features: lang === "en" ? [
@@ -105,7 +105,7 @@ const getPlansList = (lang: string, t: any) => [
   },
   {
     name: t.planPro,
-    price: "$300",
+    price: `$${300 * mult}`,
     highlight: true,
     description: t.planProDesc,
     features: lang === "en" ? [
@@ -128,7 +128,7 @@ const getPlansList = (lang: string, t: any) => [
   },
   {
     name: t.planEnterprise,
-    price: "$500",
+    price: `$${500 * mult}`,
     highlight: false,
     description: t.planEnterpriseDesc,
     features: lang === "en" ? [
@@ -239,7 +239,7 @@ export default function DashboardLayout({
   const brand = getBrandFromWindow();
   const t = translations[lang];
   const navItems = getNavItems(t);
-  const plans = getPlansList(lang, t);
+  const plans = getPlansList(lang, t, brand.priceMultiplier);
 
   return (
     <div className="min-h-screen flex">
