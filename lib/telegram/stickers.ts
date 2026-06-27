@@ -3,6 +3,36 @@ import type { TelegramClient } from "telegram";
 import bigInt from "big-integer";
 
 /**
+ * 默认指定贴纸包（短名 = t.me/addstickers/<shortName>）。
+ * 币圈 meme 风格，配 AI 群聊人设。优先用这些；拿不到再退回 featured 热门贴纸。
+ */
+export const DEFAULT_STICKER_PACKS = ["Yijinyuan528"];
+
+/** 按短名解析指定贴纸包的全部 document。best-effort：解析不到的包跳过。 */
+export async function resolveStickerPacksByName(
+  client: TelegramClient,
+  shortNames: string[]
+): Promise<Api.Document[]> {
+  const docs: Api.Document[] = [];
+  for (const shortName of shortNames) {
+    try {
+      const full = await client.invoke(
+        new Api.messages.GetStickerSet({
+          stickerset: new Api.InputStickerSetShortName({ shortName }),
+          hash: 0,
+        })
+      );
+      if (full instanceof Api.messages.StickerSet) {
+        for (const d of full.documents) if (d instanceof Api.Document) docs.push(d);
+      }
+    } catch {
+      // 包不存在 / 解析失败 → 跳过这个包
+    }
+  }
+  return docs;
+}
+
+/**
  * 解析一批可发送的 Telegram 贴纸 document（无需外部 API / 不用猜贴纸包短名）。
  * 取 Telegram 当前的 featured（精选/热门）贴纸：先收每个集合的封面 document，
  * 再展开前几个集合的全部贴纸增加多样性。document 自带 fileReference，可直接

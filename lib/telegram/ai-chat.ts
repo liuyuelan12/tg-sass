@@ -13,7 +13,12 @@ import { cleanAndValidate } from "@/lib/ai/refusal-guard";
 import { fetchCryptoNews, pickHotTopic, DEFAULT_NEWS_RSS_URLS } from "@/lib/ai/news";
 import { detectAds } from "@/lib/ai/ad-filter";
 import { fetchRandomGif, giphyKeyFromEnv } from "@/lib/ai/giphy";
-import { resolveStickers, pickRandomSticker } from "./stickers";
+import {
+  resolveStickers,
+  resolveStickerPacksByName,
+  pickRandomSticker,
+  DEFAULT_STICKER_PACKS,
+} from "./stickers";
 import { CustomFile } from "telegram/client/uploads";
 import { prisma } from "@/lib/db";
 
@@ -322,8 +327,16 @@ export class AIChatRunner {
 
     // ---- Phase C.5: resolve stickers for media turns (best-effort) ----
     if (this.config.mediaPct > 0 && this.connected.length > 0) {
+      const client0 = this.connected[0].client;
       try {
-        this.stickerDocs = await resolveStickers(this.connected[0].client);
+        // 优先用指定的币圈贴纸包；拿不到再退回 featured 热门贴纸
+        this.stickerDocs = await resolveStickerPacksByName(
+          client0,
+          DEFAULT_STICKER_PACKS
+        );
+        if (this.stickerDocs.length === 0) {
+          this.stickerDocs = await resolveStickers(client0);
+        }
       } catch {
         this.stickerDocs = [];
       }
