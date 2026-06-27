@@ -158,7 +158,7 @@ export const BRAND_CONFIG: Record<Brand, BrandConfig> = {
     usdtTrc20: "TEfJbc178R6NzogDakY2Q1Xritm24VnxL7", // TODO(apollo): 换成客户收款地址
     heroBackground: "/brands/apollo/hero-bg.png", // 待 Gemini 生成
     priceMultiplier: 10, // 每个 plan 价格 ×10（$2000 / $3000 / $5000）
-    sessionGenLocked: true, // apollo: session 由管理员代购，隐藏自助生成
+    sessionGenLocked: false, // apollo: 恢复自助生成，与 dianbaodashixiong 一致
     theme: {
       // Apollo = 太阳神，金色 + 橙 高端主题，区别于大师兄的蓝紫
       primary: "#f59e0b", // amber-500 金

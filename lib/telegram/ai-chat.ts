@@ -11,6 +11,7 @@ import { llmChat, type LlmProvider } from "@/lib/ai/llm";
 import { analyzePersonas, type Persona, type PersonaAnalysis } from "@/lib/ai/personas";
 import { cleanAndValidate } from "@/lib/ai/refusal-guard";
 import { fetchCryptoNews, pickHotTopic, DEFAULT_NEWS_RSS_URLS } from "@/lib/ai/news";
+import { detectAds } from "@/lib/ai/ad-filter";
 import { prisma } from "@/lib/db";
 
 const REACTIONS = [
@@ -147,6 +148,9 @@ export class AIChatRunner {
   private connected: ConnectedSession[] = [];
   private ownUserIds: Set<string> = new Set();
   private repliedStrangerMsgIds: Set<number> = new Set();
+  // LLM 广告判定缓存：消息 id -> 是否广告。避免同一条消息跨轮重复分类。
+  private adVerdictCache: Map<number, boolean> = new Map();
+  private static readonly AD_VERDICT_CACHE_MAX = 500;
   private readonly MAX_REPLIED_IDS = 5000;
   private lastNewsAt = 0;
   private currentNewsTopic: string | null = null;
@@ -470,7 +474,11 @@ export class AIChatRunner {
     // react target picker, LLM history) so the AI doesn't pick an ad as
     // reply target, doesn't react to an ad, and doesn't see an ad in
     // context (which would otherwise make it reply in-kind to ad chatter).
-    const recentMsgs = this.dropAdMessages(recentMsgsRaw);
+    // Layer 1: cheap keyword pass. Layer 2: LLM semantic pass for novel ads
+    // the keyword list can't anticipate. Both drop from the SAME list so all
+    // downstream picks operate on ad-free messages.
+    let recentMsgs = this.dropAdMessages(recentMsgsRaw);
+    recentMsgs = await this.dropAdMessagesLLM(recentMsgs);
 
     // Stranger priority: if toggle is on and an unanswered stranger spoke,
     // override action to "reply" and pin the target.
@@ -637,6 +645,48 @@ export class AIChatRunner {
     });
   }
 
+  // LLM 语义识别广告并剔除（关键词表挡不住的新式广告靠这层）。
+  // 只分类「未缓存」的文本消息，按消息 id 缓存判定结果，跨轮不重复花钱。
+  // best-effort：分类调用失败时记 warn 并保持关键词过滤后的列表（不缓存→下轮重试）。
+  private async dropAdMessagesLLM(msgs: Api.Message[]): Promise<Api.Message[]> {
+    const toClassify = msgs.filter(
+      (m) => m.message && !this.adVerdictCache.has(m.id)
+    );
+    if (toClassify.length > 0) {
+      try {
+        const verdicts = await detectAds(
+          toClassify.map((m) => m.message as string),
+          {
+            provider: this.config.llm.provider,
+            apiKey: this.config.llm.apiKey,
+            baseUrl: this.config.llm.baseUrl,
+            model: this.config.llm.model,
+            signal: this.abortController.signal,
+          }
+        );
+        toClassify.forEach((m, i) => this.setAdVerdict(m.id, verdicts[i] ?? false));
+      } catch (err) {
+        this.log(
+          "warn",
+          `广告识别(LLM)失败，本轮跳过语义过滤: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+    const dropped = msgs.filter((m) => this.adVerdictCache.get(m.id) === true);
+    if (dropped.length > 0) {
+      this.log("info", `🚫 LLM 识别并屏蔽 ${dropped.length} 条广告消息`);
+    }
+    return msgs.filter((m) => this.adVerdictCache.get(m.id) !== true);
+  }
+
+  private setAdVerdict(id: number, isAd: boolean): void {
+    this.adVerdictCache.set(id, isAd);
+    if (this.adVerdictCache.size > AIChatRunner.AD_VERDICT_CACHE_MAX) {
+      const oldest = this.adVerdictCache.keys().next().value;
+      if (oldest !== undefined) this.adVerdictCache.delete(oldest);
+    }
+  }
+
   private noteTopicMessageSent(): void {
     if (this.currentNewsTopic === null) return;
     this.newsTopicSentSince++;
@@ -722,6 +772,12 @@ export class AIChatRunner {
           : `\n- NEVER include these words in any form: ${banned.join(", ")}.`
         : "";
 
+    // 兜底：即便有广告漏过上游过滤，也绝不让 AI 围绕广告说话（含「吐槽广告」）。
+    const adRule =
+      lang === "zh"
+        ? `\n- 群里若出现广告/推广/招代理/拉人/加微信QQ电报/外链/赌博/兼职日入之类，一律当没看见：绝不讨论、不复述、不回应、不吐槽、不评论。若要回复的那条正好是广告，就忽略它，正常聊别的。`
+        : `\n- If the group has ads/promotions/recruitment/contact-soliciting/external promo links/gambling/get-rich pitches, act as if you never saw them: never discuss, repeat, reply to, react to, or comment on them. If the message you'd reply to is an ad, ignore it and just chat normally about something else.`;
+
     const system =
       `You are roleplaying as a Telegram group member with this style:\n` +
       `Name: ${persona.name}\n` +
@@ -735,6 +791,7 @@ export class AIChatRunner {
       `- No markdown, no bullet points, no headers.\n` +
       `- Vary your opening word — don't echo the same name/topic word every message just because the chat history does.${overusedRule}${bannedRule}\n` +
       `- Match the casual register of the sample phrases above — if they are short and slangy, your reply must be too.` +
+      adRule +
       (this.currentNewsTopic
         ? `\n- 当前群里有个热点话题：「${this.currentNewsTopic}」。如果时机合适，自然地把它带入对话，像真人随口提起，不要直接复制原句。`
         : "");
