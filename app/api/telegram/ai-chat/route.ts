@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
     sendPct = 60,
     replyPct = 30,
     reactPct = 10,
+    mediaPct = 0,
     contextSize = 10,
     maxMessages = 200,
     shouldLoop = false,
@@ -99,9 +100,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
   }
 
-  if (sendPct + replyPct + reactPct > 100) {
+  if (sendPct + replyPct + reactPct + mediaPct > 100) {
     return NextResponse.json(
-      { error: "sendPct + replyPct + reactPct must be ≤ 100" },
+      { error: "sendPct + replyPct + reactPct + mediaPct must be ≤ 100" },
       { status: 400 }
     );
   }
@@ -223,6 +224,7 @@ export async function POST(req: NextRequest) {
       sendPct,
       replyPct,
       reactPct,
+      mediaPct,
       contextSize,
       maxMessages,
       shouldLoop,

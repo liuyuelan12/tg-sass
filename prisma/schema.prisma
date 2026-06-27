@@ -143,6 +143,7 @@ model AIChatJob {
   sendPct           Int         @default(60)
   replyPct          Int         @default(30)
   reactPct          Int         @default(10)
+  mediaPct          Int         @default(8)
   contextSize       Int         @default(10)
   maxMessages       Int         @default(200)
   shouldLoop        Boolean     @default(false)

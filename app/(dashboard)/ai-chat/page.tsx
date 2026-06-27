@@ -42,6 +42,7 @@ const translations = {
     sendPct: "Send %",
     replyPct: "Reply %",
     reactPct: "React %",
+    mediaPct: "GIF/Sticker %",
     contextSize: "Context size",
     maxMessages: "Max messages",
     shouldLoop: "Loop after maxMessages",
@@ -107,6 +108,7 @@ const translations = {
     sendPct: "主动发话题 %",
     replyPct: "回复 %",
     reactPct: "表情互动 %",
+    mediaPct: "GIF/贴纸 %",
     contextSize: "上下文消息数",
     maxMessages: "最大消息数",
     shouldLoop: "达到上限后循环",
@@ -223,8 +225,9 @@ export default function AIChatPage() {
   const [intervalMin, setIntervalMin] = useState("8");
   const [intervalMax, setIntervalMax] = useState("20");
   const [sendPct, setSendPct] = useState("60");
-  const [replyPct, setReplyPct] = useState("30");
+  const [replyPct, setReplyPct] = useState("22");
   const [reactPct, setReactPct] = useState("10");
+  const [mediaPct, setMediaPct] = useState("8");
   const [contextSize, setContextSize] = useState("10");
   const [maxMessages, setMaxMessages] = useState("200");
   const [shouldLoop, setShouldLoop] = useState(false);
@@ -394,6 +397,7 @@ export default function AIChatPage() {
           sendPct: parseInt(sendPct),
           replyPct: parseInt(replyPct),
           reactPct: parseInt(reactPct),
+          mediaPct: parseInt(mediaPct),
           contextSize: parseInt(contextSize),
           maxMessages: parseInt(maxMessages),
           shouldLoop,
@@ -663,6 +667,10 @@ export default function AIChatPage() {
             <div className="space-y-1">
               <Label className="text-xs">{t.reactPct}</Label>
               <Input value={reactPct} onChange={(e) => setReactPct(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t.mediaPct}</Label>
+              <Input value={mediaPct} onChange={(e) => setMediaPct(e.target.value)} />
             </div>
           </div>
 

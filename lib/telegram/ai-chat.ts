@@ -12,6 +12,9 @@ import { analyzePersonas, type Persona, type PersonaAnalysis } from "@/lib/ai/pe
 import { cleanAndValidate } from "@/lib/ai/refusal-guard";
 import { fetchCryptoNews, pickHotTopic, DEFAULT_NEWS_RSS_URLS } from "@/lib/ai/news";
 import { detectAds } from "@/lib/ai/ad-filter";
+import { fetchRandomGif, giphyKeyFromEnv } from "@/lib/ai/giphy";
+import { resolveStickers, pickRandomSticker } from "./stickers";
+import { CustomFile } from "telegram/client/uploads";
 import { prisma } from "@/lib/db";
 
 const REACTIONS = [
@@ -42,14 +45,20 @@ function randomInterval(min: number, max: number): number {
   return (min + Math.random() * Math.max(0, max - min)) * 1000;
 }
 
+type TurnAction = "send" | "reply" | "react" | "media" | "none";
+
 function pickAction(
   sendPct: number,
-  replyPct: number
-): "send" | "reply" | "react" {
+  replyPct: number,
+  reactPct: number,
+  mediaPct: number
+): TurnAction {
   const roll = Math.random() * 100;
   if (roll < sendPct) return "send";
   if (roll < sendPct + replyPct) return "reply";
-  return "react";
+  if (roll < sendPct + replyPct + reactPct) return "react";
+  if (roll < sendPct + replyPct + reactPct + mediaPct) return "media";
+  return "none";
 }
 
 function getSenderUserId(m: Api.Message): string | null {
@@ -107,6 +116,7 @@ export interface AIChatJobConfig {
   sendPct: number;
   replyPct: number;
   reactPct: number;
+  mediaPct: number;
   contextSize: number;
   maxMessages: number;
   shouldLoop: boolean;
@@ -151,6 +161,9 @@ export class AIChatRunner {
   // LLM 广告判定缓存：消息 id -> 是否广告。避免同一条消息跨轮重复分类。
   private adVerdictCache: Map<number, boolean> = new Map();
   private static readonly AD_VERDICT_CACHE_MAX = 500;
+  // 媒体：启动时解析的 Telegram 贴纸 document + GIPHY key（无 key 则只发贴纸）
+  private stickerDocs: Api.Document[] = [];
+  private readonly giphyKey: string = giphyKeyFromEnv();
   private readonly MAX_REPLIED_IDS = 5000;
   private lastNewsAt = 0;
   private currentNewsTopic: string | null = null;
@@ -307,6 +320,19 @@ export class AIChatRunner {
 
     if (this.aborted) return this.result();
 
+    // ---- Phase C.5: resolve stickers for media turns (best-effort) ----
+    if (this.config.mediaPct > 0 && this.connected.length > 0) {
+      try {
+        this.stickerDocs = await resolveStickers(this.connected[0].client);
+      } catch {
+        this.stickerDocs = [];
+      }
+      this.log(
+        "info",
+        `媒体回合: 贴纸 ${this.stickerDocs.length} 张${this.giphyKey ? " + GIPHY GIF" : "（无 GIPHY key，仅贴纸）"}`
+      );
+    }
+
     // ---- Phase D: main loop ----
     let round = 1;
     let roundBaseSent = 0;
@@ -369,7 +395,12 @@ export class AIChatRunner {
 
         const session = eligible[this.sentCount % eligible.length];
         const persona = this.personaPerSession.get(session.id)!;
-        const action = pickAction(this.config.sendPct, this.config.replyPct);
+        const action = pickAction(
+          this.config.sendPct,
+          this.config.replyPct,
+          this.config.reactPct,
+          this.config.mediaPct
+        );
 
         try {
           await this.executeTurn(session, persona, action, entity, topicId);
@@ -421,10 +452,11 @@ export class AIChatRunner {
   private async executeTurn(
     session: ConnectedSession,
     persona: Persona,
-    originalAction: "send" | "reply" | "react",
+    originalAction: TurnAction,
     entity: string,
     topicId: number | null
   ): Promise<void> {
+    if (originalAction === "none") return;
     const client = session.client;
 
     // Refresh news topic if enabled and interval has elapsed
@@ -524,6 +556,12 @@ export class AIChatRunner {
         `${session.name} sendReaction`
       );
       this.log("success", `${session.name} reacted ${emoji} (#${target.id})`);
+      return;
+    }
+
+    // Media (GIF / sticker) — no LLM, posts a GIF or sticker as a standalone message
+    if (action === "media") {
+      await this.sendMedia(session, entity, topicId);
       return;
     }
 
@@ -684,6 +722,64 @@ export class AIChatRunner {
     if (this.adVerdictCache.size > AIChatRunner.AD_VERDICT_CACHE_MAX) {
       const oldest = this.adVerdictCache.keys().next().value;
       if (oldest !== undefined) this.adVerdictCache.delete(oldest);
+    }
+  }
+
+  // 媒体回合：随机发一个 GIF（GIPHY）或 Telegram 贴纸，当作一条独立消息发出去。
+  // best-effort：拿不到/出错就静默跳过，绝不影响后续回合。
+  private async sendMedia(
+    session: ConnectedSession,
+    entity: string,
+    topicId: number | null
+  ): Promise<void> {
+    const client = session.client;
+    const canGif = !!this.giphyKey;
+    const canSticker = this.stickerDocs.length > 0;
+    if (!canGif && !canSticker) return;
+    // 两个都能用时 GIF 略多（更应景）；只有一个就用那个。
+    const useGif = canGif && (!canSticker || Math.random() < 0.6);
+
+    if (this.config.dryRun) {
+      this.log("info", `[DRY] ${session.name} would send ${useGif ? "GIF" : "sticker"}`);
+      return;
+    }
+
+    const topMsg = topicId ? { topMsgId: topicId } : {};
+    try {
+      if (useGif) {
+        const buf = await fetchRandomGif(this.giphyKey, this.abortController.signal);
+        if (buf) {
+          const file = new CustomFile(`g${this.sentCount}.mp4`, buf.length, "", buf);
+          await this.floodWait(
+            () =>
+              client.sendMessage(entity, {
+                file,
+                replyTo: topicId ?? undefined,
+                attributes: [new Api.DocumentAttributeAnimated()],
+                ...topMsg,
+              }),
+            `${session.name} sendGif`
+          );
+          this.log("success", `${session.name} 发了个 GIF 🎞️`);
+          return;
+        }
+        // GIF 拿不到 → 退回贴纸（若有）
+      }
+      const sticker = pickRandomSticker(this.stickerDocs);
+      if (sticker) {
+        await this.floodWait(
+          () =>
+            client.sendMessage(entity, {
+              file: sticker,
+              replyTo: topicId ?? undefined,
+              ...topMsg,
+            }),
+          `${session.name} sendSticker`
+        );
+        this.log("success", `${session.name} 发了个贴纸 🩷`);
+      }
+    } catch (err) {
+      this.log("warn", `发媒体失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

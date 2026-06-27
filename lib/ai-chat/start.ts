@@ -133,6 +133,7 @@ export async function runAIChatJob(opts: RunOpts): Promise<RunAIChatResult> {
     sendPct: job.sendPct,
     replyPct: job.replyPct,
     reactPct: job.reactPct,
+    mediaPct: job.mediaPct,
     contextSize: job.contextSize,
     maxMessages: job.maxMessages,
     shouldLoop: job.shouldLoop,
