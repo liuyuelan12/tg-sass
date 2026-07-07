@@ -168,6 +168,16 @@ function shouldFallback(err: unknown): boolean {
   return true;
 }
 
+async function callGroqBackup(opts: LlmCallOpts): Promise<LlmCallResult> {
+  const backupKey = process.env.GROQ_API_KEY2;
+  if (!backupKey) {
+    throw new Error("GROQ_API_KEY2 backup is not configured");
+  }
+  const backupOpts: LlmCallOpts = { ...opts, apiKey: backupKey };
+  const result = await callOpenAICompatible(backupOpts);
+  return { ...result, usedBackup: "groq-backup" };
+}
+
 async function callDeepseekFallback(opts: LlmCallOpts): Promise<LlmCallResult> {
   const deepseekKey = process.env.DEEPSEEK_API_KEY;
   if (!deepseekKey) {
@@ -184,6 +194,10 @@ async function callDeepseekFallback(opts: LlmCallOpts): Promise<LlmCallResult> {
   return { ...result, usedBackup: "deepseek" };
 }
 
+function errMsg(err: unknown): string {
+  return (err instanceof Error ? err.message : String(err)).slice(0, 200);
+}
+
 export async function llmChat(opts: LlmCallOpts): Promise<LlmCallResult> {
   if (!opts.apiKey) throw new Error("LLM apiKey is required");
   if (!opts.model) throw new Error("LLM model is required");
@@ -195,17 +209,32 @@ export async function llmChat(opts: LlmCallOpts): Promise<LlmCallResult> {
   try {
     return await callOpenAICompatible(opts);
   } catch (err) {
-    if (
-      opts.provider === "GROQ_DEFAULT" &&
-      process.env.DEEPSEEK_API_KEY &&
-      shouldFallback(err)
-    ) {
-      const reason = err instanceof Error ? err.message : String(err);
+    if (opts.provider !== "GROQ_DEFAULT" || !shouldFallback(err)) throw err;
+
+    if (process.env.GROQ_API_KEY2) {
       console.warn(
-        `[llmChat] Groq failed (${reason.slice(0, 200)}); falling back to DeepSeek`
+        `[llmChat] Groq primary failed (${errMsg(err)}); trying Groq backup key`
+      );
+      try {
+        return await callGroqBackup(opts);
+      } catch (backupErr) {
+        if (process.env.DEEPSEEK_API_KEY && shouldFallback(backupErr)) {
+          console.warn(
+            `[llmChat] Groq backup also failed (${errMsg(backupErr)}); falling back to DeepSeek`
+          );
+          return callDeepseekFallback(opts);
+        }
+        throw backupErr;
+      }
+    }
+
+    if (process.env.DEEPSEEK_API_KEY) {
+      console.warn(
+        `[llmChat] Groq failed (${errMsg(err)}); falling back to DeepSeek`
       );
       return callDeepseekFallback(opts);
     }
+
     throw err;
   }
 }
