@@ -431,7 +431,11 @@ export class AIChatRunner {
             if (
               msg.includes("CHAT_WRITE_FORBIDDEN") ||
               msg.includes("USER_BANNED_IN_CHANNEL") ||
-              msg.includes("CHANNEL_PRIVATE")
+              msg.includes("CHANNEL_PRIVATE") ||
+              msg.includes("USERNAME_NOT_OCCUPIED") ||
+              msg.includes("USERNAME_INVALID") ||
+              msg.includes("FROZEN_METHOD_INVALID") ||
+              /No user has ".+" as username/.test(msg)
             ) {
               this.bannedSessionIds.add(session.id);
               this.log(
