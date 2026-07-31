@@ -18,6 +18,51 @@ export function isAIChatJobActive(jobId: string): boolean {
   return activeAIChatJobs.has(jobId);
 }
 
+// Snapshot of every runner currently attached in-process. Consumers must not
+// mutate the returned array; the runners themselves are owned by this module.
+export function listActiveAIChatJobs(): Array<{
+  jobId: string;
+  runner: AIChatRunner;
+  sentCount: number;
+  startedAt: number;
+}> {
+  const out: Array<{
+    jobId: string;
+    runner: AIChatRunner;
+    sentCount: number;
+    startedAt: number;
+  }> = [];
+  for (const [jobId, runner] of activeAIChatJobs.entries()) {
+    out.push({
+      jobId,
+      runner,
+      sentCount: runner.getSentCount(),
+      startedAt: runner.getStartedAt(),
+    });
+  }
+  return out;
+}
+
+/**
+ * Force-detach a runner from the active map without waiting for its start()
+ * promise to unwind. Used by the heartbeat watchdog when start() is wedged and
+ * finally-cleanup can never run. Callers are responsible for flipping the DB
+ * status separately.
+ */
+export function forceEvictAIChatJob(jobId: string): void {
+  const runner = activeAIChatJobs.get(jobId);
+  if (!runner) return;
+  activeAIChatJobs.delete(jobId);
+  try {
+    runner.stop();
+  } catch {
+    // ignore
+  }
+  runner.disconnect().catch(() => {
+    // ignore — best effort
+  });
+}
+
 interface RunOpts {
   jobId: string;
   userId: string;

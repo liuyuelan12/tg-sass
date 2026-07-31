@@ -10,6 +10,11 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "batch-session": "tsx scripts/batch-session.ts",
+    "batch-profile": "tsx scripts/batch-profile.ts",
+    "create-user": "tsx scripts/create-user.ts",
+    "ai-chat": "tsx scripts/ai-chat.ts",
+    "superex-refill": "tsx scripts/superex-refill.ts",
     "postinstall": "prisma generate",
     "docs:publish": "bash publish-docs.sh"
   },

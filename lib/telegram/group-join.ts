@@ -21,16 +21,40 @@ export type GroupJoinLog = (
   message: string
 ) => void;
 
+export type OnDeadSession = (
+  sessionId: string,
+  reason: string
+) => void | Promise<void>;
+
+const DEAD_SESSION_PATTERNS = [
+  "AUTH_KEY_UNREGISTERED",
+  "AUTH_KEY_INVALID",
+  "SESSION_REVOKED",
+  "SESSION_EXPIRED",
+  "USER_DEACTIVATED",
+  "USER_DEACTIVATED_BAN",
+];
+
+function isDeadSessionError(err: unknown): string | null {
+  const msg = err instanceof Error ? err.message : String(err);
+  for (const p of DEAD_SESSION_PATTERNS) {
+    if (msg.includes(p)) return p;
+  }
+  return null;
+}
+
 export async function connectSessions(
   inputs: SessionInput[],
-  log: GroupJoinLog
+  log: GroupJoinLog,
+  onDead?: OnDeadSession
 ): Promise<ConnectedSession[]> {
   const connected: ConnectedSession[] = [];
   for (const input of inputs) {
+    let client: TelegramClient | null = null;
     try {
       const sessionStr = decrypt(input.encryptedSession);
-      const client = createTelegramClient(sessionStr);
-      await withFloodWait(() => client.connect());
+      client = createTelegramClient(sessionStr);
+      await withFloodWait(() => client!.connect());
       const me = await client.getMe();
       const firstName =
         "firstName" in me && typeof me.firstName === "string" ? me.firstName : "";
@@ -42,10 +66,20 @@ export async function connectSessions(
       connected.push({ id: input.id, client, name, username, userId });
       log("success", `Connected: ${name}${username ? ` @${username}` : ""}`);
     } catch (err) {
+      const deadReason = isDeadSessionError(err);
       log(
-        "warn",
-        `Session ${input.id} connect failed: ${err instanceof Error ? err.message : String(err)}`
+        deadReason ? "error" : "warn",
+        `Session ${input.id} connect failed: ${err instanceof Error ? err.message : String(err)}${deadReason ? " → quarantined" : ""}`
       );
+      // Ensure any half-opened gramJS client is torn down so its _updateLoop
+      // doesn't keep reconnecting in the background and leaking memory.
+      if (client) {
+        try { await client.disconnect(); } catch { /* ignore */ }
+        try { await client.destroy(); } catch { /* ignore */ }
+      }
+      if (deadReason && onDead) {
+        try { await onDead(input.id, deadReason); } catch { /* ignore */ }
+      }
     }
     await sleep(1000);
   }

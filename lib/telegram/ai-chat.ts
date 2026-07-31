@@ -186,6 +186,9 @@ export class AIChatRunner {
   private tokensOut = 0;
   private sentCount = 0;
   private backupNotified = false;
+  public getSentCount(): number { return this.sentCount; }
+  public getStartedAt(): number { return this.startedAt; }
+  private startedAt: number = Date.now();
   private onLog: (log: AIChatLog) => void;
 
   constructor(
@@ -279,7 +282,24 @@ export class AIChatRunner {
       id: s.id,
       encryptedSession: s.sessionString,
     }));
-    this.connected = await connectSessions(inputs, (t, m) => this.log(t, m));
+    this.connected = await connectSessions(
+      inputs,
+      (t, m) => this.log(t, m),
+      async (sessionId, reason) => {
+        try {
+          await prisma.tgSession.update({
+            where: { id: sessionId },
+            data: { isActive: false },
+          });
+          this.log("warn", `Session ${sessionId} quarantined (${reason})`);
+        } catch (err) {
+          this.log(
+            "warn",
+            `Failed to quarantine ${sessionId}: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      }
+    );
 
     if (this.connected.length === 0) {
       this.log("error", "No active sessions could connect");

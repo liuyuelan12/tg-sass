@@ -33,6 +33,39 @@ const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const DEEPSEEK_FALLBACK_MODEL = "deepseek-chat";
 const FALLBACK_STATUS_CODES = new Set([401, 403, 429, 500, 502, 503, 504]);
+const LLM_FETCH_TIMEOUT_MS = 30_000;
+
+// Wrap a caller-supplied AbortSignal with a hard timeout so a hung
+// fetch (server never replies) can't leak memory forever. If the caller's
+// signal aborts first, we surface that; otherwise the timeout wins.
+function withTimeoutSignal(external?: AbortSignal): AbortSignal {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error(`LLM fetch timeout ${LLM_FETCH_TIMEOUT_MS}ms`)),
+    LLM_FETCH_TIMEOUT_MS
+  );
+  if (external) {
+    if (external.aborted) {
+      clearTimeout(timer);
+      controller.abort(external.reason);
+    } else {
+      external.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          controller.abort(external.reason);
+        },
+        { once: true }
+      );
+    }
+  }
+  const originalAbort = controller.abort.bind(controller);
+  controller.abort = ((reason?: unknown) => {
+    clearTimeout(timer);
+    originalAbort(reason);
+  }) as typeof controller.abort;
+  return controller.signal;
+}
 
 function resolveOpenAIBase(opts: LlmCallOpts): string {
   switch (opts.provider) {
@@ -74,7 +107,7 @@ async function callOpenAICompatible(opts: LlmCallOpts): Promise<LlmCallResult> {
       Authorization: `Bearer ${opts.apiKey}`,
     },
     body: JSON.stringify(body),
-    signal: opts.signal,
+    signal: withTimeoutSignal(opts.signal),
   });
 
   if (!res.ok) {
@@ -122,7 +155,7 @@ async function callAnthropic(opts: LlmCallOpts): Promise<LlmCallResult> {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(body),
-    signal: opts.signal,
+    signal: withTimeoutSignal(opts.signal),
   });
 
   if (!res.ok) {
