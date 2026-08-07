@@ -35,7 +35,7 @@ const DEAD_SESSION_PATTERNS = [
   "USER_DEACTIVATED_BAN",
 ];
 
-function isDeadSessionError(err: unknown): string | null {
+export function isDeadSessionError(err: unknown): string | null {
   const msg = err instanceof Error ? err.message : String(err);
   for (const p of DEAD_SESSION_PATTERNS) {
     if (msg.includes(p)) return p;

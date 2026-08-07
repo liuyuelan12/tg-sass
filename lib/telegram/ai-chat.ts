@@ -5,6 +5,7 @@ import {
   connectSessions,
   ensureGroupMembership,
   disconnectSessions,
+  isDeadSessionError,
   type ConnectedSession,
 } from "./group-join";
 import { llmChat, type LlmProvider } from "@/lib/ai/llm";
@@ -175,6 +176,7 @@ export class AIChatRunner {
   private newsTopicSentSince = 0;
   private personaPerSession: Map<string, Persona> = new Map();
   private bannedSessionIds: Set<string> = new Set();
+  private quarantinedSessionIds: Set<string> = new Set();
   private cooldownUntil: Map<string, number> = new Map();
   // Track openings of recently sent self-messages so we can warn the LLM not
   // to repeat the same start word over and over (e.g. screenshots showed
@@ -448,7 +450,13 @@ export class AIChatRunner {
             );
           } else {
             const msg = err instanceof Error ? err.message : String(err);
-            if (
+            const deadReason = isDeadSessionError(err);
+            if (deadReason) {
+              // Fire-and-forget: don't block the round loop on DB write.
+              this.quarantineSession(session, deadReason).catch(() => {
+                /* ignore — logged inside */
+              });
+            } else if (
               msg.includes("CHAT_WRITE_FORBIDDEN") ||
               msg.includes("USER_BANNED_IN_CHANNEL") ||
               msg.includes("CHANNEL_PRIVATE") ||
@@ -1034,12 +1042,60 @@ export class AIChatRunner {
     this.repliedStrangerMsgIds.add(id);
   }
 
+  // Runtime dead-session quarantine (D). Called from turn dispatch when a
+  // gramJS API surfaces AUTH_KEY_UNREGISTERED / SESSION_REVOKED / etc.
+  //
+  // gramJS's _updateLoop reconnects on every TCP drop; once auth is dead this
+  // loop reconnects forever and leaks Promises + TCP sockets + error stacks
+  // until OOM. destroy() is the only way to kill that loop. We also splice
+  // from this.connected so we stop dispatching turns to it, and flip
+  // TgSession.isActive=false so the next runner boot excludes it entirely.
+  private async quarantineSession(
+    session: ConnectedSession,
+    reason: string
+  ): Promise<void> {
+    if (this.quarantinedSessionIds.has(session.id)) return;
+    this.quarantinedSessionIds.add(session.id);
+    this.bannedSessionIds.add(session.id);
+    this.log(
+      "error",
+      `${session.name} runtime-quarantined (${reason}); destroying client + isActive=false`
+    );
+    try {
+      await session.client.disconnect();
+    } catch { /* ignore */ }
+    try {
+      await session.client.destroy();
+    } catch { /* ignore */ }
+    this.connected = this.connected.filter((s) => s.id !== session.id);
+    try {
+      await prisma.tgSession.update({
+        where: { id: session.id },
+        data: { isActive: false },
+      });
+    } catch (err) {
+      this.log(
+        "warn",
+        `Failed to flip isActive=false for ${session.id}: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+    if (this.connected.length === 0) {
+      this.log(
+        "error",
+        "All sessions quarantined — aborting so resurrector picks a clean runner"
+      );
+      this.aborted = true;
+      this.abortController.abort();
+    }
+  }
+
   async disconnect() {
     await disconnectSessions(this.connected);
     this.connected = [];
     this.repliedStrangerMsgIds.clear();
     this.personaPerSession.clear();
     this.bannedSessionIds.clear();
+    this.quarantinedSessionIds.clear();
     this.cooldownUntil.clear();
     this.ownUserIds.clear();
     this.currentNewsTopic = null;
