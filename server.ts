@@ -56,7 +56,10 @@ function startAIChatResurrector() {
       const candidates = await prisma.aIChatJob.findMany({
         where: {
           autoResurrect: true,
-          status: { in: ["PENDING", "COMPLETED", "FAILED"] },
+          // Include RUNNING so we catch zombies: DB says RUNNING but in-memory
+          // registry doesn't have it (crash + cleanup failed). isAIChatJobActive()
+          // below is the authoritative aliveness check — real live RUNNING is skipped.
+          status: { in: ["PENDING", "COMPLETED", "FAILED", "RUNNING"] },
         },
         select: { id: true, userId: true, lastResurrectAt: true },
       });
