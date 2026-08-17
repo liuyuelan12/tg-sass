@@ -240,6 +240,21 @@ export async function llmChat(opts: LlmCallOpts): Promise<LlmCallResult> {
     return callAnthropic(opts);
   }
 
+  // User preference: when GROQ_DEFAULT is selected and DeepSeek is configured
+  // (paid), route directly to DeepSeek. Groq becomes emergency fallback if
+  // DeepSeek itself errors out.
+  if (opts.provider === "GROQ_DEFAULT" && process.env.DEEPSEEK_API_KEY) {
+    try {
+      return await callDeepseekFallback(opts);
+    } catch (deepseekErr) {
+      if (!shouldFallback(deepseekErr)) throw deepseekErr;
+      console.warn(
+        `[llmChat] DeepSeek failed (${errMsg(deepseekErr)}); falling back to Groq`
+      );
+      // fall through to Groq path below
+    }
+  }
+
   try {
     return await callOpenAICompatible(opts);
   } catch (err) {
@@ -281,8 +296,10 @@ export function resolveServerKey(provider: LlmProvider): string | null {
 export function defaultModelFor(provider: LlmProvider): string {
   switch (provider) {
     case "GROQ_DEFAULT":
+      // DEEPSEEK_API_KEY is the paid primary; llmChat routes GROQ_DEFAULT to it.
+      return process.env.DEEPSEEK_API_KEY ? "deepseek-chat" : "openai/gpt-oss-120b";
     case "GROQ_BYOK":
-      return "llama-3.3-70b-versatile";
+      return "openai/gpt-oss-120b";
     case "OPENAI_BYOK":
       return "gpt-4o-mini";
     case "ANTHROPIC_BYOK":
