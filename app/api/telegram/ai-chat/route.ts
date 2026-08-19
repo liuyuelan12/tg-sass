@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!resolvedModel) {
-    resolvedModel = "llama-3.3-70b-versatile";
+    resolvedModel = "groq/compound-mini";
   }
 
   const { entity, topicId } = parseGroupInput(targetGroup);
@@ -208,6 +208,21 @@ export async function POST(req: NextRequest) {
       { status: 409 }
     );
   }
+
+  // Disable autoResurrect on any prior non-RUNNING jobs for this user+group.
+  // Without this, resurrector will keep pulling old STOPPED/FAILED jobs back
+  // up in parallel with the freshly-applied one → N runners on the same group
+  // → group flooded with N× the intended send rate. This is the "只有 v14 一个"
+  // guarantee: applying a new job cleans up its predecessors on the same group.
+  await prisma.aIChatJob.updateMany({
+    where: {
+      userId: guard.user.id,
+      groupEntity: entity,
+      status: { not: "RUNNING" },
+      autoResurrect: true,
+    },
+    data: { autoResurrect: false },
+  });
 
   const job = await prisma.aIChatJob.create({
     data: {
