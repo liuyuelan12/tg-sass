@@ -198,7 +198,12 @@ export async function runAIChatJob(opts: RunOpts): Promise<RunAIChatResult> {
   activeAIChatJobs.set(jobId, runner);
 
   try {
-    await prisma.aIChatJob.update({
+    // updateMany: if the row was deleted concurrently (e.g. user removed job
+    // from web UI while runner was starting), Prisma returns count:0 instead
+    // of throwing P2025. All five sites here are fire-and-forget status writes
+    // — losing them on a deleted row is fine; crashing the whole node process
+    // is not.
+    await prisma.aIChatJob.updateMany({
       where: { id: jobId },
       data: { status: "RUNNING", error: null },
     });
@@ -208,7 +213,7 @@ export async function runAIChatJob(opts: RunOpts): Promise<RunAIChatResult> {
     const finalRow = await prisma.aIChatJob.findUnique({ where: { id: jobId } });
     const wasStopped = finalRow?.status === "STOPPED";
     if (!wasStopped) {
-      await prisma.aIChatJob.update({
+      await prisma.aIChatJob.updateMany({
         where: { id: jobId },
         data: {
           status: "COMPLETED",
@@ -218,7 +223,7 @@ export async function runAIChatJob(opts: RunOpts): Promise<RunAIChatResult> {
         },
       });
     } else {
-      await prisma.aIChatJob.update({
+      await prisma.aIChatJob.updateMany({
         where: { id: jobId },
         data: {
           sentCount: result.sentCount,
@@ -229,13 +234,22 @@ export async function runAIChatJob(opts: RunOpts): Promise<RunAIChatResult> {
     }
     return { ok: true, finalStatus: wasStopped ? "STOPPED" : "COMPLETED" };
   } catch (err) {
-    await prisma.aIChatJob.update({
-      where: { id: jobId },
-      data: {
-        status: "FAILED",
-        error: err instanceof Error ? err.message : String(err),
-      },
-    });
+    // Belt-and-suspenders: updateMany already won't throw on missing row, but
+    // wrap in try/catch so any *other* DB failure (connection lost, etc.) in
+    // the error path can't itself become an unhandledRejection and crash the
+    // whole process — this is exactly the failure mode that took the service
+    // down on 2026-08-26.
+    try {
+      await prisma.aIChatJob.updateMany({
+        where: { id: jobId },
+        data: {
+          status: "FAILED",
+          error: err instanceof Error ? err.message : String(err),
+        },
+      });
+    } catch (dbErr) {
+      console.error(`[runAIChatJob ${jobId}] failed to write FAILED status:`, dbErr);
+    }
     onLog({
       type: "error",
       message: `Job failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -263,7 +277,7 @@ export async function stopAIChatJob(opts: {
 
   const runner = activeAIChatJobs.get(jobId);
   if (runner) runner.stop();
-  await prisma.aIChatJob.update({
+  await prisma.aIChatJob.updateMany({
     where: { id: jobId },
     data: { status: "STOPPED" },
   });

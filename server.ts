@@ -11,6 +11,19 @@ import {
   forceEvictAIChatJob,
 } from "./lib/ai-chat/start";
 
+// Last line of defense: keep the process alive when *any* stray promise
+// rejects or callback throws. Individual handlers should still catch their own
+// errors (see lib/socket.ts, lib/ai-chat/start.ts); this catches the ones we
+// missed. Killed the service on 2026-08-26 when an async socket handler let
+// a Prisma P2025 escape — Railway restarts on exit but 8 groups all go dark
+// for minutes until rollover finishes.
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
+
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "0.0.0.0";
 const port = parseInt(process.env.PORT || "3000", 10);

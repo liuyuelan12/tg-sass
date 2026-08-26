@@ -165,7 +165,8 @@ export function registerSocketHandlers(io: SocketIOServer) {
           job.topicId,
           job.progress > 0 ? job.progress : 100,
           userId,
-          jobId
+          jobId,
+          { includeMedia: job.includeMedia }
         );
 
         await prisma.scrapeJob.update({
@@ -173,7 +174,9 @@ export function registerSocketHandlers(io: SocketIOServer) {
           data: {
             status: "COMPLETED",
             csvR2Key: result.csvKey,
-            mediaR2Prefix: result.mediaPrefix,
+            // Null rather than an empty string: the download planner treats any
+            // prefix as "there is media here" and would build an empty archive.
+            mediaR2Prefix: result.mediaPrefix || null,
             messageCount: result.totalMessages,
           },
         });
@@ -321,24 +324,40 @@ export function registerSocketHandlers(io: SocketIOServer) {
     });
 
     // --- AI Chat (delegates to lib/ai-chat/start.ts so HTTP /start route shares it) ---
+    // Socket handlers must swallow their own errors — an unhandled throw inside
+    // an async handler propagates to Node's unhandledRejection and crashes the
+    // whole process (this is what took the service down on 2026-08-26).
     socket.on("aichat:start", async (data: { jobId: string }) => {
-      if (isAIChatJobActive(data.jobId)) {
+      try {
+        if (isAIChatJobActive(data.jobId)) {
+          socket.emit("aichat:log", {
+            type: "warn",
+            message: "Job is already running",
+            timestamp: Date.now(),
+          });
+          return;
+        }
+        await runAIChatJob({
+          jobId: data.jobId,
+          userId,
+          onLog: (log) => socket.emit("aichat:log", log),
+        });
+      } catch (err) {
+        console.error(`[aichat:start ${data.jobId}] handler crashed:`, err);
         socket.emit("aichat:log", {
-          type: "warn",
-          message: "Job is already running",
+          type: "error",
+          message: `Start failed: ${err instanceof Error ? err.message : String(err)}`,
           timestamp: Date.now(),
         });
-        return;
       }
-      await runAIChatJob({
-        jobId: data.jobId,
-        userId,
-        onLog: (log) => socket.emit("aichat:log", log),
-      });
     });
 
     socket.on("aichat:stop", async (data: { jobId: string }) => {
-      await stopAIChatJob({ jobId: data.jobId, userId });
+      try {
+        await stopAIChatJob({ jobId: data.jobId, userId });
+      } catch (err) {
+        console.error(`[aichat:stop ${data.jobId}] handler crashed:`, err);
+      }
     });
 
     socket.on("disconnect", () => {
