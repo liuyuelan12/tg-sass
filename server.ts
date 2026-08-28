@@ -111,6 +111,15 @@ function startAIChatHeartbeat() {
   const TICK_MS = 5 * 60_000;
   const STALE_MS = 30 * 60_000;
   const GRACE_MS = 10 * 60_000;
+  // Runners that have never posted get a much longer window. The resurrect
+  // first-tick sleep (ai-chat.ts isResurrect branch) can legitimately eat
+  // up to intervalMax with sentCount pinned at 0, and we've seen users push
+  // intervalMax to 90 min. STALE_MS (30 min) would evict them mid-sleep and
+  // the resurrector would immediately re-start a fresh runner into the same
+  // trap → infinite crash-loop that reads to the group as "3 own posts in a
+  // minute" because each resurrected runner fires its debut send before
+  // being killed again. 120 min covers 40-90 min interval with slack.
+  const FIRST_SEND_GRACE_MS = 120 * 60_000;
   const prisma = new PrismaClient();
   const lastSeen = new Map<string, { sent: number; at: number }>();
   const tick = async () => {
@@ -133,6 +142,13 @@ function startAIChatHeartbeat() {
         // Give freshly-started runners a grace window before any judgement —
         // connect + persona-analysis can legitimately eat minutes with no sends.
         if (runningMs < GRACE_MS) continue;
+        // A runner that has never advanced past its debut send is almost
+        // certainly still inside the first-tick sleep or waiting on a slow
+        // startup step (persona analysis, group join). Keep it around until
+        // the extended grace, otherwise a resurrect+heartbeat crash-loop
+        // manufactures the exact "sessions posting too fast" symptom users
+        // reported. Only sent-then-stuck runners fall through to STALE_MS.
+        if (a.sentCount === 0 && runningMs < FIRST_SEND_GRACE_MS) continue;
         if (stalledMs < STALE_MS) continue;
         console.log(
           `[heartbeat] evicting wedged ai-chat job ${a.jobId} (sent=${a.sentCount}, stalled=${Math.round(stalledMs / 60_000)}m)`
