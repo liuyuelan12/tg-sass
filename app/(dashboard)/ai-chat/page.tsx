@@ -47,6 +47,8 @@ const translations = {
     maxMessages: "Max messages",
     shouldLoop: "Loop after maxMessages",
     dryRun: "Dry-run (don't actually send)",
+    autoResurrect: "Auto-resurrect (survive server restarts)",
+    autoResurrectHelp: "When ON: if the runner dies (Railway redeploy, crash, transient error) the resurrector picks the job back up within ~60s. Recommended for long-running keeper jobs.",
     priorityReplyStrangers: "Priority-reply when strangers speak",
     priorityReplyStrangersHelp: "When ON: if a non-own user posts an unanswered message, the next turn force-replies to them, then resumes normal session-to-session chat.",
     bannedKeywords: "Banned keywords",
@@ -113,6 +115,8 @@ const translations = {
     maxMessages: "最大消息数",
     shouldLoop: "达到上限后循环",
     dryRun: "演练模式（不真发）",
+    autoResurrect: "自动恢复（服务器重启后自愈）",
+    autoResurrectHelp: "开启后：Railway redeploy / 崩溃 / 短暂异常导致 runner 死掉时，resurrector 会在 60 秒内自动把 job 重新拉起。长期驻留的 keeper 任务建议打开。",
     priorityReplyStrangers: "陌生人优先回复",
     priorityReplyStrangersHelp: "开启后：群里有非自己 session 的用户发言且尚未被回复时，下一回合强制回复他/她，回完后恢复 session 之间互聊。",
     bannedKeywords: "禁止关键字",
@@ -232,6 +236,7 @@ export default function AIChatPage() {
   const [maxMessages, setMaxMessages] = useState("200");
   const [shouldLoop, setShouldLoop] = useState(false);
   const [dryRun, setDryRun] = useState(true);
+  const [autoResurrect, setAutoResurrect] = useState(true);
   const [priorityReplyStrangers, setPriorityReplyStrangers] = useState(false);
   const [bannedKeywordsText, setBannedKeywordsText] = useState("");
   const [newsEnabled, setNewsEnabled] = useState(false);
@@ -402,6 +407,7 @@ export default function AIChatPage() {
           maxMessages: parseInt(maxMessages),
           shouldLoop,
           dryRun,
+          autoResurrect,
           priorityReplyStrangers,
           bannedKeywords: bannedKeywordsText
             .split(/[\n,，]/)
@@ -709,6 +715,20 @@ export default function AIChatPage() {
                 className="rounded"
               />
               {t.dryRun}
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={autoResurrect}
+                  onChange={(e) => setAutoResurrect(e.target.checked)}
+                  className="rounded"
+                />
+                {t.autoResurrect}
+              </span>
+              <span className="text-xs text-muted-foreground pl-6">
+                {t.autoResurrectHelp}
+              </span>
             </label>
             <label className="flex flex-col gap-1 text-sm">
               <span className="flex items-center gap-2">

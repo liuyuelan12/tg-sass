@@ -192,6 +192,15 @@ export async function runAIChatJob(opts: RunOpts): Promise<RunAIChatResult> {
     manualPersonas,
     cachedPersonas,
     cachedSessionPersonaMap,
+    // The resurrector writes lastResurrectAt=now right before invoking us
+    // (server.ts:88-91), so a value within the last minute means we're a
+    // crash-recovery instance — the runner will sleep a random interval
+    // before sending its first message to avoid back-to-back posts with the
+    // pre-crash message.
+    isResurrect: Boolean(
+      job.lastResurrectAt &&
+        Date.now() - job.lastResurrectAt.getTime() < 60_000
+    ),
   };
 
   const runner = new AIChatRunner(config, onLog);

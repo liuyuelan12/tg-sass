@@ -209,20 +209,29 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Disable autoResurrect on any prior non-RUNNING jobs for this user+group.
-  // Without this, resurrector will keep pulling old STOPPED/FAILED jobs back
-  // up in parallel with the freshly-applied one → N runners on the same group
-  // → group flooded with N× the intended send rate. This is the "只有 v14 一个"
-  // guarantee: applying a new job cleans up its predecessors on the same group.
-  await prisma.aIChatJob.updateMany({
+  // Disable autoResurrect on any prior non-RUNNING jobs on the SAME GROUP,
+  // regardless of userId. Without this, resurrector keeps pulling old
+  // STOPPED/FAILED jobs back up in parallel with the freshly-applied one → N
+  // runners on the same group → group flooded with N× the intended send rate
+  // AND, worse, dead-session reconnect storms from the zombie job pollute the
+  // shared event loop and crash the healthy runner too (seen in prod:
+  // superexcn2 zombie was killing superexcn's new job on SuperExOfficial_CN).
+  // Cross-user scope is intentional — one channel has one voice at a time.
+  // Filter `autoResurrect: true` already excludes jobs a peer deliberately
+  // stopped (e.g. colleague zhoubapi2's completed job).
+  const disabled = await prisma.aIChatJob.updateMany({
     where: {
-      userId: guard.user.id,
       groupEntity: entity,
       status: { not: "RUNNING" },
       autoResurrect: true,
     },
     data: { autoResurrect: false },
   });
+  if (disabled.count > 0) {
+    console.log(
+      `[ai-chat apply] disabled autoResurrect on ${disabled.count} prior job(s) for group ${entity} (any user)`
+    );
+  }
 
   const job = await prisma.aIChatJob.create({
     data: {

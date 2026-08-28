@@ -136,6 +136,15 @@ export interface AIChatJobConfig {
   manualPersonas?: Record<string, Persona>;
   cachedPersonas?: PersonaAnalysis | null;
   cachedSessionPersonaMap?: Record<string, number> | null;
+  /**
+   * When true, this runner was started by the resurrector after a previous
+   * crash. Before entering the main send loop we sleep a random interval so
+   * the very first message doesn't fire back-to-back with the pre-crash one
+   * — otherwise viewers see two of our sessions post within seconds, which
+   * looks like a bot swarm. Fresh manual starts leave this false so the user
+   * sees their first message immediately after clicking Start.
+   */
+  isResurrect?: boolean;
 }
 
 export interface AIChatLog {
@@ -369,6 +378,23 @@ export class AIChatRunner {
     }
 
     // ---- Phase D: main loop ----
+    // Post-crash first-tick guard: if resurrector woke this runner, sleep a
+    // random interval before the very first send so we don't fire back-to-back
+    // with the pre-crash message. Manual starts (isResurrect=false) skip this
+    // so the user sees action immediately after clicking Start.
+    if (this.config.isResurrect) {
+      const delay = randomInterval(
+        this.config.intervalMin,
+        this.config.intervalMax
+      );
+      this.log(
+        "info",
+        `Resurrected runner — sleeping ${Math.round(delay / 1000)}s before first send to space out from pre-crash message`
+      );
+      await sleep(delay);
+      if (this.aborted) return this.result();
+    }
+
     let round = 1;
     let roundBaseSent = 0;
     do {
