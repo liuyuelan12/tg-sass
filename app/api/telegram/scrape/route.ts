@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const guard = await requireActiveUser();
   if (!guard.ok) return guard.response;
 
-  const { sessionId, groupLink, count } = await req.json();
+  const { sessionId, groupLink, count, includeMedia } = await req.json();
 
   if (!sessionId || !groupLink) {
     return NextResponse.json(
@@ -45,6 +45,9 @@ export async function POST(req: NextRequest) {
       topicId,
       status: "PENDING",
       progress: count || 100,
+      // Strictly boolean: anything truthy-but-not-true from the client would
+      // silently re-enable the expensive path.
+      includeMedia: includeMedia === true,
     },
   });
 

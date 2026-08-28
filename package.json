@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "next build",
-    "start": "tsx server.ts",
+    "build": "next build && npm run build:server",
+    "build:server": "esbuild server.ts --bundle --platform=node --target=node20 --format=cjs --packages=external --tsconfig=tsconfig.json --outfile=dist/server.js",
+    "start": "node dist/server.js",
+    "start:tsx": "tsx server.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
@@ -16,7 +18,9 @@
     "ai-chat": "tsx scripts/ai-chat.ts",
     "superex-refill": "tsx scripts/superex-refill.ts",
     "postinstall": "prisma generate",
-    "docs:publish": "bash publish-docs.sh"
+    "docs:publish": "bash publish-docs.sh",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
@@ -60,9 +64,11 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.27.3",
     "postcss": "^8.5.0",
     "prisma": "^6.4.1",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.7"
   }
 }

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useLanguage } from "@/lib/useLanguage";
 
 const translations = {
@@ -28,6 +29,9 @@ const translations = {
     uploadFailed: "Upload failed: {error}",
     uploadFailedShort: "Upload failed",
     scraping: "Scraping...",
+    includeMedia: "Download attachments",
+    includeMediaHint:
+      "Off by default. Attachments are mirrored to storage and make scrapes much slower and far more expensive — leave off unless auto-chat needs to resend them.",
     startScrape: "Start Scrape",
     stop: "Stop",
     uploadSourceTitle: "Upload Data Source",
@@ -65,6 +69,9 @@ const translations = {
     uploadFailed: "上传失败: {error}",
     uploadFailedShort: "上传失败",
     scraping: "采集中...",
+    includeMedia: "下载图片视频等附件",
+    includeMediaHint:
+      "默认关闭。附件会被转存到对象存储，采集速度大幅变慢、流量成本高出很多——除非自动聊天需要转发这些素材，否则保持关闭。",
     startScrape: "开始采集",
     stop: "停止",
     uploadSourceTitle: "上传数据源",
@@ -125,7 +132,11 @@ export default function ScrapePage() {
   const [progress, setProgress] = useState<ScrapeProgressData | null>(null);
   const [statusText, setStatusText] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Off by default: mirroring attachments into R2 dominated the egress bill and
+  // most jobs only ever use the CSV text.
+  const [includeMedia, setIncludeMedia] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -163,6 +174,7 @@ export default function ScrapePage() {
           sessionId: selectedSessionId,
           groupLink,
           count: parseInt(count) || 100,
+          includeMedia,
         }),
       });
 
@@ -235,8 +247,31 @@ export default function ScrapePage() {
     }
   }
 
-  function downloadJob(jobId: string) {
-    window.open(`/api/files/download?jobId=${jobId}&type=scrape`, "_blank");
+  async function downloadJob(jobId: string) {
+    // The endpoint now hands back a presigned R2 link instead of streaming the
+    // bytes through our server. First download of a media job spends a moment
+    // building the archive; afterwards the link is served from cache.
+    setDownloadingId(jobId);
+    try {
+      const res = await fetch(`/api/files/download?jobId=${jobId}&type=scrape`);
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "Download failed");
+      }
+      // A programmatic window.open this far from the click gets caught by popup
+      // blockers. An anchor navigation does not, and the presigned link carries
+      // its own Content-Disposition so the browser saves rather than renders it.
+      const link = document.createElement("a");
+      link.href = data.url;
+      link.download = data.filename || "";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setStatusText(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloadingId(null);
+    }
   }
 
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
@@ -315,6 +350,19 @@ export default function ScrapePage() {
                 disabled={scraping}
               />
             </div>
+          </div>
+
+          <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="include-media">{t.includeMedia}</Label>
+              <p className="text-xs text-muted-foreground">{t.includeMediaHint}</p>
+            </div>
+            <Switch
+              id="include-media"
+              checked={includeMedia}
+              onCheckedChange={setIncludeMedia}
+              disabled={scraping}
+            />
           </div>
 
           {(statusText || scraping) && (

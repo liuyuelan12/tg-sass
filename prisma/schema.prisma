@@ -78,6 +78,12 @@ model ScrapeJob {
   status        JobStatus @default(PENDING)
   csvR2Key      String?
   mediaR2Prefix String?
+  // Mirroring every attachment into R2 was the bulk of this service's egress
+  // bill, and most jobs only ever consume the CSV text. Opt in per job.
+  includeMedia  Boolean   @default(false)
+  // Built once on first download and cached here so later downloads are served
+  // straight from R2 by presigned URL instead of proxying through this server.
+  zipR2Key      String?
   messageCount  Int       @default(0)
   progress      Int       @default(0)
   error         String?

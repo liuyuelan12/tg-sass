@@ -67,7 +67,10 @@ export async function POST(req: NextRequest) {
         groupEntity,
         status: "COMPLETED",
         csvR2Key: csvKey,
-        mediaR2Prefix: mediaPrefix,
+        // Only claim a media prefix once something actually landed there — an
+        // empty prefix makes the download path build a pointless archive.
+        mediaR2Prefix: mediaCount > 0 ? mediaPrefix : null,
+        includeMedia: mediaCount > 0,
       },
     });
 

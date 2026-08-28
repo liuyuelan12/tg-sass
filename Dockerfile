@@ -31,7 +31,9 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/server.ts ./server.ts
+# The custom server is bundled ahead of time now. Running it through tsx kept an
+# esbuild transpiler resident in the serving process for the container's lifetime.
+COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/next.config.ts ./next.config.ts
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/lib ./lib
@@ -43,4 +45,6 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV NODE_OPTIONS="--max-old-space-size=512"
 
-CMD npx prisma db push --skip-generate && npx tsx prisma/seed.ts && npx tsx server.ts
+# Seed still goes through tsx, but it is a one-shot process that exits before the
+# server starts — nothing stays resident. The server itself runs plain node.
+CMD npx prisma db push --skip-generate && npx tsx prisma/seed.ts && node dist/server.js

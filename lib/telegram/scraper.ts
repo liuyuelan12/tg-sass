@@ -123,8 +123,13 @@ export class ScrapeRunner {
     topicId: number | null,
     count: number,
     userId: string,
-    jobId: string
+    jobId: string,
+    options: { includeMedia?: boolean } = {}
   ): Promise<{ csvKey: string; mediaPrefix: string; totalMessages: number }> {
+    // Each attachment is pulled from Telegram and mirrored into R2, and that
+    // upload is billed egress — it dominated this service's network cost. Callers
+    // opt in; by default a scrape collects text only.
+    const includeMedia = options.includeMedia === true;
     const sessionStr = decrypt(encryptedSession);
     this.client = createTelegramClient(sessionStr);
 
@@ -185,7 +190,7 @@ export class ScrapeRunner {
           const mediaType = getMediaType(msg);
           let mediaPath = "";
 
-          if (mediaType && msg.media) {
+          if (mediaType && msg.media && includeMedia) {
             const fileSize = getMediaSize(msg);
             if (fileSize > MAX_MEDIA_SIZE) {
               mediaSkipped++;
@@ -251,7 +256,9 @@ export class ScrapeRunner {
 
       return {
         csvKey,
-        mediaPrefix,
+        // Empty when nothing was stored, so the download path can tell a
+        // text-only job from one that actually has an archive to bundle.
+        mediaPrefix: mediaDownloaded > 0 ? mediaPrefix : "",
         totalMessages: records.length,
       };
     } finally {

@@ -6,6 +6,7 @@ import {
   DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { Readable } from "stream";
 
 function getR2Client(): S3Client {
   return new S3Client({
@@ -36,6 +37,14 @@ export async function uploadToR2(
   );
 }
 
+/**
+ * Buffers a whole object into memory. Fine for CSV text, wrong for attachments.
+ *
+ * Buffers live in native memory *outside* the V8 heap, so `--max-old-space-size`
+ * does not cap them — buffering attachments in a loop is how this process reached
+ * ~1.9 GB resident against a 512 MB heap limit. Use `streamFromR2` for anything
+ * that is only being passed through.
+ */
 export async function downloadFromR2(key: string): Promise<Buffer> {
   const client = getR2Client();
   const response = await client.send(
@@ -50,14 +59,41 @@ export async function downloadFromR2(key: string): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
+/**
+ * Opens an object as a stream so callers can pipe it without ever holding it whole.
+ */
+export async function streamFromR2(key: string): Promise<Readable> {
+  const client = getR2Client();
+  const response = await client.send(
+    new GetObjectCommand({ Bucket: bucket(), Key: key })
+  );
+  const body = response.Body;
+  if (!body) throw new Error("Empty response from R2");
+  return body as Readable;
+}
+
+/**
+ * Signs a direct-download link.
+ *
+ * `filename` is worth passing: without a Content-Disposition the browser renders
+ * CSVs inline instead of saving them, and the object key — not the friendly name —
+ * ends up as the filename.
+ */
 export async function getPresignedUrl(
   key: string,
-  expiresIn = 3600
+  expiresIn = 3600,
+  filename?: string
 ): Promise<string> {
   const client = getR2Client();
   return getSignedUrl(
     client,
-    new GetObjectCommand({ Bucket: bucket(), Key: key }),
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: key,
+      ...(filename
+        ? { ResponseContentDisposition: `attachment; filename="${filename}"` }
+        : {}),
+    }),
     { expiresIn }
   );
 }
