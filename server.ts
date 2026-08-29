@@ -109,17 +109,21 @@ function startAIChatResurrector() {
 // resurrector picks up a clean instance on the next tick.
 function startAIChatHeartbeat() {
   const TICK_MS = 5 * 60_000;
-  const STALE_MS = 30 * 60_000;
+  // 2h stale window instead of 30 min. sentCount only advances between
+  // sleeps, and users legitimately set intervalMax up to 90 min — so a
+  // healthy runner's gap between sends already reaches ~90 min. STALE_MS
+  // used to be 30 min and evicted these healthy runners every second turn
+  // (2026-08-29 CN incident, memory `heartbeat_evict_revokes_sessions`),
+  // and each evict → resurrect race revoked sessions via
+  // AUTH_KEY_DUPLICATED. 120 min = intervalMax cap + 30 min slack. If you
+  // ever push intervalMax higher, raise this in lockstep.
+  const STALE_MS = 120 * 60_000;
   const GRACE_MS = 10 * 60_000;
-  // Runners that have never posted get a much longer window. The resurrect
-  // first-tick sleep (ai-chat.ts isResurrect branch) can legitimately eat
-  // up to intervalMax with sentCount pinned at 0, and we've seen users push
-  // intervalMax to 90 min. STALE_MS (30 min) would evict them mid-sleep and
-  // the resurrector would immediately re-start a fresh runner into the same
-  // trap → infinite crash-loop that reads to the group as "3 own posts in a
-  // minute" because each resurrected runner fires its debut send before
-  // being killed again. 120 min covers 40-90 min interval with slack.
-  const FIRST_SEND_GRACE_MS = 120 * 60_000;
+  // Runners that have never posted get the same 120 min window as a stalled
+  // one (was a separate FIRST_SEND_GRACE_MS constant before STALE_MS caught
+  // up). The isResurrect first-tick sleep can legitimately pin sentCount at
+  // 0 for the whole intervalMax.
+  const FIRST_SEND_GRACE_MS = STALE_MS;
   const prisma = new PrismaClient();
   const lastSeen = new Map<string, { sent: number; at: number }>();
   const tick = async () => {
@@ -153,7 +157,11 @@ function startAIChatHeartbeat() {
         console.log(
           `[heartbeat] evicting wedged ai-chat job ${a.jobId} (sent=${a.sentCount}, stalled=${Math.round(stalledMs / 60_000)}m)`
         );
-        forceEvictAIChatJob(a.jobId);
+        // Await the disconnect: without it the resurrector 60s later boots
+        // a fresh runner whose sessions collide with this runner's still-open
+        // gramJS clients → AUTH_KEY_DUPLICATED → Telegram permanently revokes
+        // the session (memory `heartbeat_evict_revokes_sessions`).
+        await forceEvictAIChatJob(a.jobId);
         lastSeen.delete(a.jobId);
         try {
           await prisma.aIChatJob.update({

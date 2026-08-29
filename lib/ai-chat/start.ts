@@ -48,8 +48,16 @@ export function listActiveAIChatJobs(): Array<{
  * promise to unwind. Used by the heartbeat watchdog when start() is wedged and
  * finally-cleanup can never run. Callers are responsible for flipping the DB
  * status separately.
+ *
+ * MUST await disconnect before returning. Callers (heartbeat) trigger the
+ * resurrector 60s later, and if the old runner's gramJS clients are still
+ * connected when the new runner boots the same sessions, Telegram sees two
+ * clients holding the same auth_key and PERMANENTLY REVOKES the session
+ * (AUTH_KEY_DUPLICATED). Recovering a revoked session requires a new SMS
+ * activation — the exact damage the 2026-08-29 CN incident inflicted. Never
+ * fire-and-forget this again. See memory `heartbeat_evict_revokes_sessions`.
  */
-export function forceEvictAIChatJob(jobId: string): void {
+export async function forceEvictAIChatJob(jobId: string): Promise<void> {
   const runner = activeAIChatJobs.get(jobId);
   if (!runner) return;
   activeAIChatJobs.delete(jobId);
@@ -58,9 +66,14 @@ export function forceEvictAIChatJob(jobId: string): void {
   } catch {
     // ignore
   }
-  runner.disconnect().catch(() => {
-    // ignore — best effort
+  // Bounded disconnect: a truly stuck gramJS socket close can hang. 30s is
+  // long enough for a clean disconnect and short enough that a heartbeat tick
+  // isn't blocked forever on one job.
+  const disconnectPromise = runner.disconnect().catch((err) => {
+    console.error(`[forceEvict ${jobId}] disconnect error (ignored):`, err);
   });
+  const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 30_000));
+  await Promise.race([disconnectPromise, timeoutPromise]);
 }
 
 interface RunOpts {
