@@ -379,14 +379,17 @@ export class AIChatRunner {
 
     // ---- Phase D: main loop ----
     // Post-crash first-tick guard: if resurrector woke this runner, sleep a
-    // random interval before the very first send so we don't fire back-to-back
-    // with the pre-crash message. Manual starts (isResurrect=false) skip this
-    // so the user sees action immediately after clicking Start.
+    // short fixed interval before the very first send so we don't fire back-
+    // to-back with the pre-crash message. Manual starts (isResurrect=false)
+    // skip this so the user sees action immediately after clicking Start.
+    //
+    // Was random(intervalMin, intervalMax) — but that meant CN (900-1500s
+    // interval) waited 15-25 min after every resurrect, and any config-change
+    // → flip FAILED → resurrect took 15-25 min to see effect. 2 min is enough
+    // spacing for the group to not read as "two posts in a minute" while
+    // keeping recovery/config-change feedback fast.
     if (this.config.isResurrect) {
-      const delay = randomInterval(
-        this.config.intervalMin,
-        this.config.intervalMax
-      );
+      const delay = 2 * 60_000;
       this.log(
         "info",
         `Resurrected runner — sleeping ${Math.round(delay / 1000)}s before first send to space out from pre-crash message`
