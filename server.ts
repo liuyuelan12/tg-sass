@@ -103,27 +103,21 @@ function startAIChatResurrector() {
   // so we don't race against it on startup.
 }
 
-// Heartbeat watchdog: a runner whose sentCount has not advanced for
-// STALE_MS is presumed wedged (LLM/gramJS deadlock, event-loop stuck).
-// Force-evict it from the active map and flip its DB status so the
+// Heartbeat watchdog: a runner whose sentCount has not advanced past its
+// per-job stale threshold is presumed wedged (LLM/gramJS deadlock, event-loop
+// stuck). Force-evict it from the active map and flip its DB status so the
 // resurrector picks up a clean instance on the next tick.
 function startAIChatHeartbeat() {
   const TICK_MS = 5 * 60_000;
-  // 2h stale window instead of 30 min. sentCount only advances between
-  // sleeps, and users legitimately set intervalMax up to 90 min — so a
-  // healthy runner's gap between sends already reaches ~90 min. STALE_MS
-  // used to be 30 min and evicted these healthy runners every second turn
-  // (2026-08-29 CN incident, memory `heartbeat_evict_revokes_sessions`),
-  // and each evict → resurrect race revoked sessions via
-  // AUTH_KEY_DUPLICATED. 120 min = intervalMax cap + 30 min slack. If you
-  // ever push intervalMax higher, raise this in lockstep.
-  const STALE_MS = 120 * 60_000;
   const GRACE_MS = 10 * 60_000;
-  // Runners that have never posted get the same 120 min window as a stalled
-  // one (was a separate FIRST_SEND_GRACE_MS constant before STALE_MS caught
-  // up). The isResurrect first-tick sleep can legitimately pin sentCount at
-  // 0 for the whole intervalMax.
-  const FIRST_SEND_GRACE_MS = STALE_MS;
+  // Hard floor for the per-job stale threshold. Even the tiniest interval
+  // config still gets 30 min before we consider a runner wedged, so short-
+  // interval jobs don't become evict-happy on a normal LLM slow-down.
+  const MIN_STALE_MS = 30 * 60_000;
+  // Extra slack added on top of 2× intervalMax. Absorbs one skipped turn
+  // (banned-keyword filter, ad-classifier reject, retry) plus a slow LLM call
+  // without triggering an evict.
+  const STALE_SLACK_MS = 30 * 60_000;
   const prisma = new PrismaClient();
   const lastSeen = new Map<string, { sent: number; at: number }>();
   const tick = async () => {
@@ -135,6 +129,20 @@ function startAIChatHeartbeat() {
       for (const id of lastSeen.keys()) {
         if (!activeIds.has(id)) lastSeen.delete(id);
       }
+      if (active.length === 0) return;
+      // Per-job stale threshold: max(30 min, intervalMax × 2 + 30 min).
+      // Hard-coded thresholds caused the 2026-08-29 CN session revoke
+      // incident (memory `heartbeat_evict_revokes_sessions`): STALE_MS was
+      // 30 min while users legitimately set intervalMax up to 90 min, so
+      // healthy runners looked wedged every second turn, got evicted, and
+      // the evict→resurrect race revoked sessions via AUTH_KEY_DUPLICATED.
+      // Reading intervalMax from DB per tick keeps threshold in lockstep
+      // with whatever the user configured — no more manual sync bugs.
+      const jobs = await prisma.aIChatJob.findMany({
+        where: { id: { in: [...activeIds] } },
+        select: { id: true, intervalMax: true },
+      });
+      const intervalMaxSec = new Map(jobs.map((j) => [j.id, j.intervalMax]));
       for (const a of active) {
         const prev = lastSeen.get(a.jobId);
         if (!prev || prev.sent !== a.sentCount) {
@@ -146,16 +154,22 @@ function startAIChatHeartbeat() {
         // Give freshly-started runners a grace window before any judgement —
         // connect + persona-analysis can legitimately eat minutes with no sends.
         if (runningMs < GRACE_MS) continue;
-        // A runner that has never advanced past its debut send is almost
+        // Fallback 1500 (25 min) for jobs whose DB row vanished mid-tick —
+        // matches the smallest current keeper interval, safe default.
+        const maxSec = intervalMaxSec.get(a.jobId) ?? 1500;
+        const staleThreshold = Math.max(
+          MIN_STALE_MS,
+          maxSec * 1000 * 2 + STALE_SLACK_MS
+        );
+        // Runners that have never advanced past their debut send are almost
         // certainly still inside the first-tick sleep or waiting on a slow
-        // startup step (persona analysis, group join). Keep it around until
-        // the extended grace, otherwise a resurrect+heartbeat crash-loop
-        // manufactures the exact "sessions posting too fast" symptom users
-        // reported. Only sent-then-stuck runners fall through to STALE_MS.
-        if (a.sentCount === 0 && runningMs < FIRST_SEND_GRACE_MS) continue;
-        if (stalledMs < STALE_MS) continue;
+        // startup step (persona analysis, group join). Same threshold as the
+        // stalled-after-send case: isResurrect first-tick sleep can pin
+        // sentCount at 0 for the whole intervalMax.
+        if (a.sentCount === 0 && runningMs < staleThreshold) continue;
+        if (stalledMs < staleThreshold) continue;
         console.log(
-          `[heartbeat] evicting wedged ai-chat job ${a.jobId} (sent=${a.sentCount}, stalled=${Math.round(stalledMs / 60_000)}m)`
+          `[heartbeat] evicting wedged ai-chat job ${a.jobId} (sent=${a.sentCount}, stalled=${Math.round(stalledMs / 60_000)}m, threshold=${Math.round(staleThreshold / 60_000)}m for intervalMax=${maxSec}s)`
         );
         // Await the disconnect: without it the resurrector 60s later boots
         // a fresh runner whose sessions collide with this runner's still-open
