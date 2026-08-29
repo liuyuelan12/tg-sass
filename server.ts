@@ -31,6 +31,48 @@ const port = parseInt(process.env.PORT || "3000", 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
+// On startup, for each groupEntity keep only the newest autoResurrect=true
+// job — disarm every older auto=true row on the same group. Without this,
+// the resurrector's next tick spawns a runner per row and they collide on
+// the same auth_keys → AUTH_KEY_DUPLICATED loops (2026-08-29 BD/TR/PK/PH
+// incident: 12 zombie auto=true rows across 6 groups had accumulated since
+// commit 5648370's cross-user disable only fires at apply-new-job time,
+// never on historical rows). Keeping "newest wins" matches what apply-new-job
+// already does — one voice per group, always. Read-only groups have zero
+// impact (autoResurrect=false rows are untouched).
+async function sweepDupeAutoResurrect() {
+  const prisma = new PrismaClient();
+  try {
+    const rows = await prisma.aIChatJob.findMany({
+      where: { autoResurrect: true },
+      select: { id: true, groupEntity: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const seen = new Set<string>();
+    const disarmIds: string[] = [];
+    for (const r of rows) {
+      if (seen.has(r.groupEntity)) {
+        disarmIds.push(r.id);
+      } else {
+        seen.add(r.groupEntity);
+      }
+    }
+    if (disarmIds.length === 0) return;
+    const result = await prisma.aIChatJob.updateMany({
+      where: { id: { in: disarmIds } },
+      data: {
+        autoResurrect: false,
+        error: "Zombie sweep at startup: not the newest auto=true job for this group",
+      },
+    });
+    console.log(
+      `[startup] disarmed ${result.count} duplicate auto=true job(s) across ${seen.size} group(s)`
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 // On startup, reset orphaned RUNNING jobs from previous crash
 async function cleanupOrphanedJobs() {
   const prisma = new PrismaClient();
@@ -198,6 +240,10 @@ function startAIChatHeartbeat() {
 }
 
 app.prepare().then(async () => {
+  // Disarm duplicate auto=true rows BEFORE cleanupOrphanedJobs flips all
+  // RUNNING to FAILED — otherwise the resurrector's first tick 60s from now
+  // pulls up every zombie alongside the keeper again.
+  await sweepDupeAutoResurrect();
   await cleanupOrphanedJobs();
 
   const httpServer = createServer((req, res) => {
