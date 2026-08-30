@@ -457,7 +457,11 @@ export class AIChatRunner {
           continue;
         }
 
-        const session = eligible[this.sentCount % eligible.length];
+        // Round-robin by `turn` (not sentCount) so that turns which don't
+        // increment sentCount — react (emoji), media (sticker/GIF), none —
+        // still advance the rotation index. Otherwise the same session
+        // gets picked repeatedly until it lands on a send/reply.
+        const session = eligible[turn % eligible.length];
         const persona = this.personaPerSession.get(session.id)!;
         const action = pickAction(
           this.config.sendPct,
