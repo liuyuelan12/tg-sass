@@ -557,6 +557,7 @@ export class AIChatRunner {
               baseUrl: this.config.llm.baseUrl,
               model: this.config.llm.model,
               signal: this.abortController.signal,
+              language: this.analysis?.language ?? "zh",
             });
             this.lastNewsAt = Date.now();
             this.newsTopicSentSince = 0;
