@@ -85,12 +85,19 @@ function chineseCharRatio(text: string): number {
   return total === 0 ? 0 : zh / total;
 }
 
-function isRefusal(text: string, language: "zh" | "en"): boolean {
-  const patterns = language === "zh" ? REFUSAL_PATTERNS_ZH : REFUSAL_PATTERNS_EN;
-  for (const p of patterns) {
+function isRefusal(text: string, language: "zh" | "en" | "vi"): boolean {
+  // vi has no vi-specific refusal patterns yet; check en patterns since
+  // LLMs typically emit English refusals ("I can't help with that ...").
+  const primary =
+    language === "zh"
+      ? REFUSAL_PATTERNS_ZH
+      : REFUSAL_PATTERNS_EN;
+  for (const p of primary) {
     if (p.test(text)) return true;
   }
-  for (const p of language === "zh" ? REFUSAL_PATTERNS_EN : REFUSAL_PATTERNS_ZH) {
+  const secondary =
+    language === "zh" ? REFUSAL_PATTERNS_EN : REFUSAL_PATTERNS_ZH;
+  for (const p of secondary) {
     if (p.test(text)) return true;
   }
   return false;
@@ -98,7 +105,7 @@ function isRefusal(text: string, language: "zh" | "en"): boolean {
 
 export function cleanAndValidate(
   rawContent: string,
-  language: "zh" | "en",
+  language: "zh" | "en" | "vi",
   opts: CleanOpts = {}
 ): CleanResult {
   if (!rawContent) {
@@ -143,10 +150,37 @@ export function cleanAndValidate(
       return { ok: false, reason: "language mismatch (expected zh)", cleaned };
     }
   }
+  if (language === "vi") {
+    // For vi we want the output to actually be Vietnamese. If it's plain
+    // ASCII with no vi diacritics, it's likely the LLM ignored the rule and
+    // fell back to English/canned text — reject and retry.
+    const VI_DIACRITICS_CHECK =
+      /[đĐơƠưƯạảãáàâấầẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộớờởỡợùúủũụứừửữựỳýỷỹỵ]/;
+    if (!VI_DIACRITICS_CHECK.test(cleaned)) {
+      return { ok: false, reason: "language mismatch (expected vi)", cleaned };
+    }
+  }
 
   const bannedHit = findBannedHit(cleaned, opts.bannedKeywords);
   if (bannedHit) {
     return { ok: false, reason: `banned keyword: ${bannedHit}`, cleaned };
+  }
+
+  // Universal URL / link guard: LLMs occasionally ignore anti-link instructions
+  // (esp. deepseek backup on short outputs). Real chat members rarely paste
+  // http(s)://, t.me/, or @channel_name links unprompted — reject and retry.
+  // Keeps groups from getting instant-banned as spam bots.
+  if (/https?:\/\/\S+/i.test(cleaned)) {
+    return { ok: false, reason: "output contains URL", cleaned };
+  }
+  if (/\bt\.me\/\S+/i.test(cleaned)) {
+    return { ok: false, reason: "output contains t.me link", cleaned };
+  }
+  // @-mentions of channels/bots that look like promo (@Xxx_bot, @xxx_channel,
+  // @xxx_official). Allow plain short @name mentions (< 8 chars, no _official/_bot)
+  // since those are commonly user handles in real chats.
+  if (/@[a-zA-Z0-9_]{4,}_(bot|channel|official|group|chat)\b/i.test(cleaned)) {
+    return { ok: false, reason: "output contains promo-style @mention", cleaned };
   }
 
   return { ok: true, cleaned };

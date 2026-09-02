@@ -72,7 +72,7 @@ export async function fetchCryptoNews(
 export async function pickHotTopic(
   items: NewsItem[],
   llmOpts: Omit<LlmCallOpts, "system" | "messages" | "maxTokens" | "responseFormat"> & {
-    language?: "zh" | "en";
+    language?: "zh" | "en" | "vi";
   }
 ): Promise<string> {
   const { language = "zh", ...restLlmOpts } = llmOpts;
@@ -80,7 +80,16 @@ export async function pickHotTopic(
     .map((item, i) => `${i + 1}. ${item.title}${item.description ? `\n   ${item.description}` : ""}`)
     .join("\n\n");
 
-  const prompts = language === "en"
+  const prompts = language === "vi"
+    ? {
+        system:
+          `Bạn là thành viên tích cực trong một group Telegram crypto Việt Nam. Casual, thẳng thắn, giống người thật — không phải bot.\n` +
+          `Nhiệm vụ: chọn MỘT tin news dễ tạo thảo luận nhất, rồi viết lại thành câu mở chuyện tự nhiên trong group\n` +
+          `— như một người thật vô tình nhắc tới. Đừng copy nguyên tiêu đề. Dưới 25 chữ.\n` +
+          `Chỉ output một dòng đó, không giải thích. TUYỆT ĐỐI không được kèm link/URL.`,
+        user: `News crypto hôm nay:\n\n${numbered}\n\nChọn 1, dùng giọng group chat (≤25 chữ):`,
+      }
+    : language === "en"
     ? {
         system:
           `You are an active member of a crypto Telegram group. Casual, direct, human — not a bot.\n` +

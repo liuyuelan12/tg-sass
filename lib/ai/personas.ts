@@ -7,8 +7,10 @@ export interface Persona {
   samplePhrases: string[];
 }
 
+export type PersonaLang = "zh" | "en" | "vi";
+
 export interface PersonaAnalysis {
-  language: "zh" | "en";
+  language: PersonaLang;
   personas: Persona[];
 }
 
@@ -19,7 +21,7 @@ const PersonaSchema = z.object({
 });
 
 const PersonaAnalysisSchema = z.object({
-  language: z.enum(["zh", "en"]),
+  language: z.enum(["zh", "en", "vi"]),
   personas: z.array(PersonaSchema).min(1).max(8),
 });
 
@@ -91,21 +93,21 @@ function buildPersonaPrompt(samples: string[]): { system: string; user: string }
 
   const user =
     `Below are ${samples.length} sampled messages from a chat group. Detect the dominant ` +
-    `language ("zh" if Chinese is dominant, otherwise "en") and extract 3-5 distinct ` +
-    `stylistic personas that capture how different members talk. Each persona is a STYLE ` +
-    `ARCHETYPE, not a real person.\n\n` +
+    `language ("zh" if Chinese is dominant, "vi" if Vietnamese is dominant, otherwise "en") ` +
+    `and extract 3-5 distinct stylistic personas that capture how different members talk. ` +
+    `Each persona is a STYLE ARCHETYPE, not a real person.\n\n` +
     `For each persona provide:\n` +
     `- name: short label (in detected language, max 12 chars)\n` +
     `- traits: ONE sentence on tone, length, punctuation, emoji habits, vocabulary\n` +
     `- samplePhrases: 4-6 example phrases consistent with that style, drawn or adapted from the transcript\n\n` +
-    `Schema: {"language":"zh"|"en","personas":[{"name":"","traits":"","samplePhrases":[]}]}\n\n` +
+    `Schema: {"language":"zh"|"en"|"vi","personas":[{"name":"","traits":"","samplePhrases":[]}]}\n\n` +
     `Transcript:\n` +
     samples.map((s) => `- ${s}`).join("\n");
 
   return { system, user };
 }
 
-function genericFallback(language: "zh" | "en"): PersonaAnalysis {
+function genericFallback(language: PersonaLang): PersonaAnalysis {
   if (language === "zh") {
     return {
       language: "zh",
@@ -119,6 +121,23 @@ function genericFallback(language: "zh" | "en"): PersonaAnalysis {
           name: "理性派",
           traits: "简洁理性，偶尔分享观点，少用 emoji",
           samplePhrases: ["我觉得不一定", "看情况吧", "嗯", "有道理", "可以一试"],
+        },
+      ],
+    };
+  }
+  if (language === "vi") {
+    return {
+      language: "vi",
+      personas: [
+        {
+          name: "Vui vẻ",
+          traits: "Thân thiện, hay dùng emoji và tin nhắn ngắn, tần suất cao",
+          samplePhrases: ["kkk", "đúng r", "hay v", "trời ạ", "vãi"],
+        },
+        {
+          name: "Lý tính",
+          traits: "Ngắn gọn, có suy nghĩ, ít dùng emoji",
+          samplePhrases: ["thú vị", "tùy trường hợp", "ừm", "hợp lý", "đáng thử"],
         },
       ],
     };
@@ -140,17 +159,27 @@ function genericFallback(language: "zh" | "en"): PersonaAnalysis {
   };
 }
 
-function detectLanguageHeuristic(texts: string[]): "zh" | "en" {
+// Vietnamese-specific diacritics that don't appear in generic English
+// (đ/Đ + ơ/ư/ạ/ấ/ầ/ẩ/ẫ/ậ/ế/ể/ệ etc). Any presence of these strongly
+// indicates Vietnamese text since English/most other latin languages
+// don't use them.
+const VI_DIACRITICS = /[đĐơƠưƯạảãáàâấầẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộớờởỡợùúủũụứừửữựỳýỷỹỵ]/;
+
+function detectLanguageHeuristic(texts: string[]): PersonaLang {
   let zhChars = 0;
   let total = 0;
+  let hasVi = false;
   for (const t of texts) {
+    if (!hasVi && VI_DIACRITICS.test(t)) hasVi = true;
     for (const ch of t) {
       total++;
       if (/[一-鿿]/.test(ch)) zhChars++;
     }
   }
   if (total === 0) return "en";
-  return zhChars / total > 0.2 ? "zh" : "en";
+  if (zhChars / total > 0.2) return "zh";
+  if (hasVi) return "vi";
+  return "en";
 }
 
 function tryParseJson(content: string): unknown {

@@ -75,15 +75,31 @@ function getSenderUserId(m: Api.Message): string | null {
   return null;
 }
 
-function extractOpening(text: string, lang: "zh" | "en"): string {
+function extractOpening(text: string, lang: "zh" | "en" | "vi"): string {
   const trimmed = text.replace(/^[\s，。、！？!,.?\-—…@#"'“”「」]+/, "");
   if (lang === "zh") return trimmed.slice(0, 4);
-  const m = trimmed.match(/^[A-Za-z']+/);
+  // en + vi share latin-based openings; strip vi diacritics via lowercase alone is
+  // insufficient so we widen the character class to include latin-1 supplement.
+  const m = trimmed.match(/^[A-Za-zÀ-ÿ']+/);
   return m ? m[0].toLowerCase() : trimmed.slice(0, 8).toLowerCase();
 }
 
 const MAX_RECENT_OPENINGS = 6;
 const OPENING_REPEAT_THRESHOLD = 2;
+const MAX_RECENT_BODIES = 12;
+
+// Lowercase + collapse whitespace + strip trailing punctuation and emojis
+// so "Chill đi bro, đừng lo leverage 😤" and "chill đi bro đừng lo leverage"
+// dedup against each other. Emoji stripping is coarse (Extended_Pictographic)
+// but that's OK: we want to catch same-message-different-emoji.
+function normalizeForDedup(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\p{Extended_Pictographic}/gu, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function findOverusedOpenings(openings: string[]): string[] {
   const counts = new Map<string, number>();
@@ -191,6 +207,10 @@ export class AIChatRunner {
   // to repeat the same start word over and over (e.g. screenshots showed
   // every reply beginning with "截图哥...").
   private recentSelfOpenings: string[] = [];
+  // Full normalized bodies of recently sent self-messages. Used to reject
+  // exact-dup LLM outputs (e.g. deepseek backup collapsed to same canned
+  // response across two sessions — 2026-09-02 VN incident).
+  private recentSelfBodies: string[] = [];
   private analysis: PersonaAnalysis | null = null;
   private abortController: AbortController = new AbortController();
   private tokensIn = 0;
@@ -273,7 +293,15 @@ export class AIChatRunner {
       const sampleText = manualList
         .map((p) => `${p.name} ${p.traits} ${p.samplePhrases.join(" ")}`)
         .join(" ");
-      const language: "zh" | "en" = /[一-龥]/.test(sampleText) ? "zh" : "en";
+      // Detect Vietnamese via its unique diacritics (đ/ơ/ư + tone marks that
+      // don't appear in generic English/Latin languages). Chinese wins if
+      // present; otherwise vi wins on any vi-diacritic; else fallback en.
+      const VI_DIACRITICS_MP = /[đĐơƠưƯạảãáàâấầẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộớờởỡợùúủũụứừửữựỳýỷỹỵ]/;
+      const language: "zh" | "en" | "vi" = /[一-龥]/.test(sampleText)
+        ? "zh"
+        : VI_DIACRITICS_MP.test(sampleText)
+        ? "vi"
+        : "en";
       analysis = { language, personas: manualList };
       this.log(
         "info",
@@ -878,11 +906,25 @@ export class AIChatRunner {
   private recordSelfOpening(text: string): void {
     const lang = this.analysis?.language ?? "en";
     const opening = extractOpening(text, lang);
-    if (!opening) return;
-    this.recentSelfOpenings.push(opening);
-    if (this.recentSelfOpenings.length > MAX_RECENT_OPENINGS) {
-      this.recentSelfOpenings.shift();
+    if (opening) {
+      this.recentSelfOpenings.push(opening);
+      if (this.recentSelfOpenings.length > MAX_RECENT_OPENINGS) {
+        this.recentSelfOpenings.shift();
+      }
     }
+    const body = normalizeForDedup(text);
+    if (body) {
+      this.recentSelfBodies.push(body);
+      if (this.recentSelfBodies.length > MAX_RECENT_BODIES) {
+        this.recentSelfBodies.shift();
+      }
+    }
+  }
+
+  private isDuplicateOfRecent(text: string): boolean {
+    const body = normalizeForDedup(text);
+    if (!body) return false;
+    return this.recentSelfBodies.some((prev) => prev === body);
   }
 
   private findUnansweredStranger(messages: Api.Message[]): Api.Message | null {
@@ -927,6 +969,10 @@ export class AIChatRunner {
         ? `- 极短：单条消息最多 30 个中文字。绝对不要写多句话或长段落。\n` +
           `- 像微信群里的真人随手回，不要写文章。\n` +
           `- 不要总结、不要分析、不要列要点。`
+        : lang === "vi"
+        ? `- CỰC NGẮN: một tin nhắn duy nhất, dưới 80 ký tự. TUYỆT ĐỐI KHÔNG viết nhiều câu hoặc đoạn dài.\n` +
+          `- Như một user chat casual, đáp nhanh trên điện thoại.\n` +
+          `- Không tóm tắt, không phân tích, không list bullet.`
         : `- VERY SHORT: a single message under 80 characters. NO multi-sentence essays.\n` +
           `- Like a casual chat user dashing off a quick reply.\n` +
           `- No summaries, no analysis, no bullet points.`;
@@ -936,6 +982,8 @@ export class AIChatRunner {
       overused.length > 0
         ? lang === "zh"
           ? `\n- 不要再以这些词开头：${overused.join("、")}。换一个新的开头方式。`
+          : lang === "vi"
+          ? `\n- KHÔNG được bắt đầu tin nhắn bằng bất kỳ từ nào trong: ${overused.join(", ")}. Đổi cách mở đầu.`
           : `\n- DO NOT start your message with any of: ${overused.join(", ")}. Use a fresh opening.`
         : "";
 
@@ -944,6 +992,8 @@ export class AIChatRunner {
       banned.length > 0
         ? lang === "zh"
           ? `\n- 严禁出现这些词（任何形式都不行）：${banned.join("、")}。`
+          : lang === "vi"
+          ? `\n- TUYỆT ĐỐI không được dùng bất kỳ từ nào trong: ${banned.join(", ")}.`
           : `\n- NEVER include these words in any form: ${banned.join(", ")}.`
         : "";
 
@@ -951,7 +1001,16 @@ export class AIChatRunner {
     const adRule =
       lang === "zh"
         ? `\n- 群里若出现广告/推广/招代理/拉人/加微信QQ电报/外链/赌博/兼职日入之类，一律当没看见：绝不讨论、不复述、不回应、不吐槽、不评论。若要回复的那条正好是广告，就忽略它，正常聊别的。`
+        : lang === "vi"
+        ? `\n- Nếu group có ads/khuyến mãi/tuyển đại lý/kéo người/liên hệ zalo-telegram-tt/link ngoài/gambling/kèo làm giàu, coi như không thấy: không thảo luận, không lặp, không reply, không react, không bình luận. Nếu tin nhắn định reply là ads, bỏ qua và chat chuyện khác.`
         : `\n- If the group has ads/promotions/recruitment/contact-soliciting/external promo links/gambling/get-rich pitches, act as if you never saw them: never discuss, repeat, reply to, react to, or comment on them. If the message you'd reply to is an ad, ignore it and just chat normally about something else.`;
+
+    const replyLangLabel =
+      lang === "zh"
+        ? "Chinese (中文)"
+        : lang === "vi"
+        ? "Vietnamese (Tiếng Việt)"
+        : "English";
 
     const system =
       `You are roleplaying as a Telegram group member with this style:\n` +
@@ -959,7 +1018,7 @@ export class AIChatRunner {
       `Style: ${persona.traits}\n` +
       `Sample phrases: ${persona.samplePhrases.join(" | ")}\n\n` +
       `Rules:\n` +
-      `- Reply ONLY in ${lang === "zh" ? "Chinese (中文)" : "English"}.\n` +
+      `- Reply ONLY in ${replyLangLabel}.\n` +
       `${lengthRule}\n` +
       `- NEVER mention you are an AI, model, or assistant.\n` +
       `- NEVER use phrases like "as a", "I'm here to help", or quoted preambles.\n` +
@@ -1008,11 +1067,21 @@ export class AIChatRunner {
         const validated = cleanAndValidate(result.content, lang, {
           bannedKeywords: this.config.bannedKeywords,
         });
-        if (validated.ok) return validated.cleaned;
-        this.log(
-          "warn",
-          `LLM output rejected (${validated.reason}); retry=${attempt}`
-        );
+        if (validated.ok) {
+          if (this.isDuplicateOfRecent(validated.cleaned)) {
+            this.log(
+              "warn",
+              `LLM output rejected (exact dup of recent self message: "${validated.cleaned.slice(0, 40)}..."); retry=${attempt}`
+            );
+          } else {
+            return validated.cleaned;
+          }
+        } else {
+          this.log(
+            "warn",
+            `LLM output rejected (${validated.reason}); retry=${attempt}`
+          );
+        }
       } catch (err) {
         const e = err as Error & { status?: number; retryAfter?: number };
         if (e.status === 401 || e.status === 403) {
